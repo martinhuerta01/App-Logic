@@ -31,33 +31,23 @@ class State(rx.State):
     filtro_mes: str = ""
     filtro_anio: str = "2026"
     nuevo_empleado: str = ""
-
-    # Estadísticas
     stats_mes: str = ""
     stats_anio: str = "2026"
     stats_resumen: list[dict] = []
     stats_barras_horas: list[dict] = []
     stats_barras_prod: list[dict] = []
-
-    # Stock
     productos: list[dict] = []
     nombres_productos: list[str] = []
     ubicaciones: list[dict] = []
     nombres_ubicaciones: list[str] = []
     stock_actual: list[dict] = []
     stock_ubicacion_filtro: str = ""
-    nombres_ubicaciones_internas: list[str] = []
-
-    # Entrada
     entrada_producto: str = ""
     entrada_cantidad: str = "1"
     entrada_fecha: str = ""
-    entrada_origen: str = "Proveedor"
     entrada_observacion: str = ""
     entrada_exito: str = ""
     entrada_error: str = ""
-
-    # Transferencia / Salida
     mov_producto: str = ""
     mov_cantidad: str = "1"
     mov_fecha: str = ""
@@ -67,6 +57,34 @@ class State(rx.State):
     mov_tipo: str = "TRANSFERENCIA"
     mov_exito: str = ""
     mov_error: str = ""
+    prod_codigo: str = ""
+    prod_descripcion: str = ""
+    prod_categoria: str = "DISPOSITIVOS"
+    prod_filtro_cat: str = ""
+    prod_edit_id: str = ""
+    prod_edit_desc: str = ""
+    prod_edit_cat: str = ""
+    prod_exito: str = ""
+    prod_error: str = ""
+    proveedores: list[dict] = []
+    prov_nombre: str = ""
+    prov_responsable: str = ""
+    prov_telefono: str = ""
+    prov_email: str = ""
+    prov_direccion: str = ""
+    prov_productos: str = ""
+    prov_observaciones: str = ""
+    prov_edit_id: str = ""
+    prov_exito: str = ""
+    prov_error: str = ""
+    mostrar_form_prov: bool = False
+    mostrar_form_prod: bool = False
+
+    @rx.var
+    def productos_filtrados(self) -> list[dict]:
+        if not self.prod_filtro_cat:
+            return self.productos
+        return [p for p in self.productos if p["categoria"] == self.prod_filtro_cat]
 
     async def login(self):
         self.cargando = True
@@ -224,11 +242,7 @@ class State(rx.State):
         for j in raw:
             nombre = j["nombre"]
             if nombre not in resumen:
-                resumen[nombre] = {
-                    "nombre": nombre, "dias": 0, "horas_total": 0.0,
-                    "extras": 0.0, "debe": 0.0,
-                    "instalaciones": 0, "desinstalaciones": 0, "revisiones": 0, "ausencias": 0,
-                }
+                resumen[nombre] = {"nombre": nombre, "dias": 0, "horas_total": 0.0, "extras": 0.0, "debe": 0.0, "instalaciones": 0, "desinstalaciones": 0, "revisiones": 0, "ausencias": 0}
             r2 = resumen[nombre]
             if j["tipo_asistencia"] in ["ACTIVO", "LLEGADA_TARDE"]:
                 r2["dias"] += 1
@@ -254,16 +268,12 @@ class State(rx.State):
                     dias[dia] = {"dia": dia, "horas": 0.0}
                 dias[dia]["horas"] = round(dias[dia]["horas"] + j["horas"], 2)
         self.stats_barras_horas = sorted(dias.values(), key=lambda x: x["dia"])
-        total_inst = sum(j.get("instalaciones", 0) for j in raw)
-        total_desins = sum(j.get("desinstalaciones", 0) for j in raw)
-        total_rev = sum(j.get("revisiones", 0) for j in raw)
         self.stats_barras_prod = [
-            {"tipo": "Instalaciones", "cantidad": total_inst},
-            {"tipo": "Desinstalaciones", "cantidad": total_desins},
-            {"tipo": "Revisiones", "cantidad": total_rev},
+            {"tipo": "Instalaciones", "cantidad": sum(j.get("instalaciones", 0) for j in raw)},
+            {"tipo": "Desinstalaciones", "cantidad": sum(j.get("desinstalaciones", 0) for j in raw)},
+            {"tipo": "Revisiones", "cantidad": sum(j.get("revisiones", 0) for j in raw)},
         ]
 
-    # ── STOCK ──────────────────────────────────────────
     async def cargar_productos_y_ubicaciones(self):
         async with httpx.AsyncClient(timeout=30.0) as client:
             rp = await client.get(f"{API_URL}/stock/productos/")
@@ -272,7 +282,6 @@ class State(rx.State):
         self.nombres_productos = [f"{p['codigo']} - {p['descripcion']}" for p in self.productos]
         self.ubicaciones = ru.json()
         self.nombres_ubicaciones = [u["nombre"] for u in self.ubicaciones]
-        self.nombres_ubicaciones_internas = [u["nombre"] for u in self.ubicaciones if u["tipo"] == "INTERNO"]
 
     async def cargar_stock_actual(self):
         await self.cargar_productos_y_ubicaciones()
@@ -297,11 +306,9 @@ class State(rx.State):
             self.entrada_error = "Completá producto y fecha"
             return
         prod = next((p for p in self.productos if f"{p['codigo']} - {p['descripcion']}" == self.entrada_producto), None)
-        if not prod:
-            return
         ub_oficina = next((u for u in self.ubicaciones if u["nombre"] == "Oficina"), None)
-        if not ub_oficina:
-            self.entrada_error = "No se encontró la ubicación Oficina"
+        if not prod or not ub_oficina:
+            self.entrada_error = "Error con producto o ubicación"
             return
         payload = {
             "tipo": "ENTRADA",
@@ -357,9 +364,114 @@ class State(rx.State):
             self.mov_exito = "Movimiento registrado correctamente"
             self.mov_error = ""
         else:
-            detail = r.json().get("detail", "Error al registrar")
-            self.mov_error = detail
+            self.mov_error = r.json().get("detail", "Error al registrar")
             self.mov_exito = ""
+
+    async def cargar_productos(self):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/stock/productos/")
+        self.productos = r.json()
+        self.nombres_productos = [f"{p['codigo']} - {p['descripcion']}" for p in self.productos]
+
+    async def agregar_producto(self):
+        if not self.prod_codigo or not self.prod_descripcion:
+            self.prod_error = "Completá código y descripción"
+            return
+        payload = {"codigo": self.prod_codigo, "descripcion": self.prod_descripcion, "categoria": self.prod_categoria}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(f"{API_URL}/stock/productos/", json=payload)
+        if r.status_code == 200:
+            self.prod_codigo = ""
+            self.prod_descripcion = ""
+            self.prod_exito = "Producto agregado"
+            self.prod_error = ""
+            self.mostrar_form_prod = False
+            await self.cargar_productos()
+        else:
+            self.prod_error = "Error al agregar producto"
+
+    async def eliminar_producto(self, producto_id: str):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.delete(f"{API_URL}/stock/productos/{producto_id}")
+        await self.cargar_productos()
+
+    def iniciar_edit_producto(self, prod_id: str, desc: str, cat: str):
+        self.prod_edit_id = prod_id
+        self.prod_edit_desc = desc
+        self.prod_edit_cat = cat
+
+    async def guardar_edit_producto(self):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.put(f"{API_URL}/stock/productos/{self.prod_edit_id}", json={"descripcion": self.prod_edit_desc, "categoria": self.prod_edit_cat})
+        self.prod_edit_id = ""
+        await self.cargar_productos()
+
+    async def cargar_proveedores(self):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/proveedores/")
+        self.proveedores = r.json()
+
+    async def agregar_proveedor(self):
+        if not self.prov_nombre:
+            self.prov_error = "El nombre es obligatorio"
+            return
+        payload = {
+            "nombre": self.prov_nombre,
+            "responsable": self.prov_responsable or None,
+            "telefono": self.prov_telefono or None,
+            "email": self.prov_email or None,
+            "direccion": self.prov_direccion or None,
+            "productos_que_vende": self.prov_productos or None,
+            "observaciones": self.prov_observaciones or None,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(f"{API_URL}/proveedores/", json=payload)
+        if r.status_code == 200:
+            self.prov_nombre = ""
+            self.prov_responsable = ""
+            self.prov_telefono = ""
+            self.prov_email = ""
+            self.prov_direccion = ""
+            self.prov_productos = ""
+            self.prov_observaciones = ""
+            self.prov_exito = "Proveedor agregado"
+            self.prov_error = ""
+            self.mostrar_form_prov = False
+            await self.cargar_proveedores()
+        else:
+            self.prov_error = "Error al agregar proveedor"
+
+    async def eliminar_proveedor(self, prov_id: str):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.delete(f"{API_URL}/proveedores/{prov_id}")
+        await self.cargar_proveedores()
+
+    def iniciar_edit_proveedor(self, prov_id: str, nombre: str, responsable, telefono, email, direccion, productos, obs):
+        self.prov_edit_id = prov_id
+        self.prov_nombre = nombre or ""
+        self.prov_responsable = responsable or ""
+        self.prov_telefono = telefono or ""
+        self.prov_email = email or ""
+        self.prov_direccion = direccion or ""
+        self.prov_productos = productos or ""
+        self.prov_observaciones = obs or ""
+        self.mostrar_form_prov = True
+
+    async def guardar_edit_proveedor(self):
+        payload = {
+            "nombre": self.prov_nombre,
+            "responsable": self.prov_responsable or None,
+            "telefono": self.prov_telefono or None,
+            "email": self.prov_email or None,
+            "direccion": self.prov_direccion or None,
+            "productos_que_vende": self.prov_productos or None,
+            "observaciones": self.prov_observaciones or None,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.put(f"{API_URL}/proveedores/{self.prov_edit_id}", json=payload)
+        self.prov_edit_id = ""
+        self.mostrar_form_prov = False
+        await self.cargar_proveedores()
 
 
 MODULOS = [
@@ -368,7 +480,7 @@ MODULOS = [
     {"id": "servicios", "icon": "wrench", "label": "Servicios", "color": "#0f766e",
      "subs": [("serv_cargar", "Cargar servicio"), ("serv_lista", "Lista")]},
     {"id": "stock", "icon": "package", "label": "Stock", "color": "#b45309",
-     "subs": [("stock_actual", "Stock actual"), ("stock_entrada", "Entrada"), ("stock_salida", "Transferencia/Salida"), ("stock_productos", "Productos")]},
+     "subs": [("stock_actual", "Stock actual"), ("stock_entrada", "Entrada"), ("stock_salida", "Transferencia/Salida"), ("stock_productos", "Productos"), ("stock_proveedores", "Proveedores")]},
     {"id": "terceros", "icon": "users", "label": "Terceros", "color": "#7c3aed",
      "subs": [("terceros_lista", "Lista"), ("terceros_stock", "Stock")]},
     {"id": "reportes", "icon": "chart-bar", "label": "Reportes", "color": "#be123c",
@@ -477,21 +589,9 @@ def page_registro() -> rx.Component:
             rx.heading("Registro de Jornada", size="6"),
             rx.divider(),
             rx.hstack(
-                rx.vstack(
-                    rx.text("Técnico", font_size="12px", font_weight="600", color="gray"),
-                    rx.select(State.nombres_empleados, placeholder="Seleccionar técnico", value=State.empleado_sel, on_change=State.set_empleado_sel, width="200px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Fecha", font_size="12px", font_weight="600", color="gray"),
-                    rx.input(type="date", value=State.fecha_jornada, on_change=State.set_fecha_jornada, width="180px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Tipo", font_size="12px", font_weight="600", color="gray"),
-                    rx.select(["ACTIVO", "LLEGADA_TARDE", "AUSENCIA_SJ", "AUSENCIA_J", "VACACIONES", "LICENCIA"], value=State.tipo_asistencia, on_change=State.set_tipo_asistencia, width="200px"),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Técnico", font_size="12px", font_weight="600", color="gray"), rx.select(State.nombres_empleados, placeholder="Seleccionar técnico", value=State.empleado_sel, on_change=State.set_empleado_sel, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Fecha", font_size="12px", font_weight="600", color="gray"), rx.input(type="date", value=State.fecha_jornada, on_change=State.set_fecha_jornada, width="180px"), spacing="1"),
+                rx.vstack(rx.text("Tipo", font_size="12px", font_weight="600", color="gray"), rx.select(["ACTIVO", "LLEGADA_TARDE", "AUSENCIA_SJ", "AUSENCIA_J", "VACACIONES", "LICENCIA"], value=State.tipo_asistencia, on_change=State.set_tipo_asistencia, width="200px"), spacing="1"),
                 spacing="4", wrap="wrap",
             ),
             rx.cond(
@@ -512,8 +612,7 @@ def page_registro() -> rx.Component:
                     spacing="4",
                 ),
             ),
-            rx.cond(State.tipo_asistencia == "AUSENCIA_J",
-                rx.vstack(rx.text("Motivo", font_size="12px", color="gray"), rx.input(value=State.motivo, on_change=State.set_motivo, width="300px"), spacing="1")),
+            rx.cond(State.tipo_asistencia == "AUSENCIA_J", rx.vstack(rx.text("Motivo", font_size="12px", color="gray"), rx.input(value=State.motivo, on_change=State.set_motivo, width="300px"), spacing="1")),
             rx.cond(State.tipo_asistencia == "LICENCIA",
                 rx.hstack(
                     rx.vstack(rx.text("Tipo licencia", font_size="12px", color="gray"), rx.input(value=State.tipo_licencia, on_change=State.set_tipo_licencia, width="200px"), spacing="1"),
@@ -679,8 +778,7 @@ def page_estadisticas() -> rx.Component:
                 rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
                 rx.recharts.graphing_tooltip(),
                 data=State.stats_barras_horas,
-                width="100%",
-                height=300,
+                width="100%", height=300,
             ),
             rx.text("Productividad del período", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="16px"),
             rx.recharts.bar_chart(
@@ -690,8 +788,7 @@ def page_estadisticas() -> rx.Component:
                 rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
                 rx.recharts.graphing_tooltip(),
                 data=State.stats_barras_prod,
-                width="100%",
-                height=250,
+                width="100%", height=250,
             ),
             spacing="4", width="100%",
         )
@@ -704,9 +801,7 @@ def stock_row(item: dict) -> rx.Component:
         rx.table.cell(item["prod_desc"]),
         rx.table.cell(item["prod_cat"]),
         rx.table.cell(item["ubic_nombre"]),
-        rx.table.cell(
-            rx.text(item["cantidad"], color=item["stock_color"], font_weight="700")
-        ),
+        rx.table.cell(rx.text(item["cantidad"], color=item["stock_color"], font_weight="700")),
     )
 
 
@@ -716,17 +811,7 @@ def page_stock_actual() -> rx.Component:
             rx.heading("Stock Actual", size="6"),
             rx.divider(),
             rx.hstack(
-                rx.vstack(
-                    rx.text("Ubicación", font_size="12px", color="gray"),
-                    rx.select(
-                        State.nombres_ubicaciones,
-                        placeholder="Todas",
-                        value=State.stock_ubicacion_filtro,
-                        on_change=State.set_stock_ubicacion_filtro,
-                        width="200px",
-                    ),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Ubicación", font_size="12px", color="gray"), rx.select(State.nombres_ubicaciones, placeholder="Todas", value=State.stock_ubicacion_filtro, on_change=State.set_stock_ubicacion_filtro, width="200px"), spacing="1"),
                 rx.button("Filtrar", on_click=State.cargar_stock_actual, color_scheme="blue"),
                 spacing="4", align="end",
             ),
@@ -755,28 +840,12 @@ def page_stock_entrada() -> rx.Component:
             rx.heading("Entrada de Stock", size="6"),
             rx.divider(),
             rx.hstack(
-                rx.vstack(
-                    rx.text("Producto", font_size="12px", color="gray"),
-                    rx.select(State.nombres_productos, placeholder="Seleccionar producto", value=State.entrada_producto, on_change=State.set_entrada_producto, width="300px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Cantidad", font_size="12px", color="gray"),
-                    rx.input(type="number", value=State.entrada_cantidad, on_change=State.set_entrada_cantidad, width="100px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Fecha", font_size="12px", color="gray"),
-                    rx.input(type="date", value=State.entrada_fecha, on_change=State.set_entrada_fecha, width="160px"),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Producto", font_size="12px", color="gray"), rx.select(State.nombres_productos, placeholder="Seleccionar producto", value=State.entrada_producto, on_change=State.set_entrada_producto, width="300px"), spacing="1"),
+                rx.vstack(rx.text("Cantidad", font_size="12px", color="gray"), rx.input(type="number", value=State.entrada_cantidad, on_change=State.set_entrada_cantidad, width="100px"), spacing="1"),
+                rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.entrada_fecha, on_change=State.set_entrada_fecha, width="160px"), spacing="1"),
                 spacing="4", wrap="wrap",
             ),
-            rx.vstack(
-                rx.text("Origen / Observación", font_size="12px", color="gray"),
-                rx.input(placeholder="Proveedor o motivo", value=State.entrada_observacion, on_change=State.set_entrada_observacion, width="400px"),
-                spacing="1",
-            ),
+            rx.vstack(rx.text("Origen / Observación", font_size="12px", color="gray"), rx.input(placeholder="Proveedor o motivo", value=State.entrada_observacion, on_change=State.set_entrada_observacion, width="400px"), spacing="1"),
             rx.cond(State.entrada_error != "", rx.callout(State.entrada_error, color="red")),
             rx.cond(State.entrada_exito != "", rx.callout(State.entrada_exito, color="green")),
             rx.button("Registrar entrada", on_click=State.registrar_entrada, color_scheme="blue", size="3"),
@@ -792,56 +861,201 @@ def page_stock_salida() -> rx.Component:
             rx.heading("Transferencia / Salida", size="6"),
             rx.divider(),
             rx.hstack(
-                rx.vstack(
-                    rx.text("Tipo", font_size="12px", color="gray"),
-                    rx.select(
-                        ["TRANSFERENCIA", "SALIDA", "DESCARTE"],
-                        value=State.mov_tipo,
-                        on_change=State.set_mov_tipo,
-                        width="160px",
-                    ),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Producto", font_size="12px", color="gray"),
-                    rx.select(State.nombres_productos, placeholder="Seleccionar", value=State.mov_producto, on_change=State.set_mov_producto, width="300px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Cantidad", font_size="12px", color="gray"),
-                    rx.input(type="number", value=State.mov_cantidad, on_change=State.set_mov_cantidad, width="100px"),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Tipo", font_size="12px", color="gray"), rx.select(["TRANSFERENCIA", "SALIDA", "DESCARTE"], value=State.mov_tipo, on_change=State.set_mov_tipo, width="160px"), spacing="1"),
+                rx.vstack(rx.text("Producto", font_size="12px", color="gray"), rx.select(State.nombres_productos, placeholder="Seleccionar", value=State.mov_producto, on_change=State.set_mov_producto, width="300px"), spacing="1"),
+                rx.vstack(rx.text("Cantidad", font_size="12px", color="gray"), rx.input(type="number", value=State.mov_cantidad, on_change=State.set_mov_cantidad, width="100px"), spacing="1"),
                 spacing="4", wrap="wrap",
             ),
             rx.hstack(
-                rx.vstack(
-                    rx.text("Origen", font_size="12px", color="gray"),
-                    rx.select(State.nombres_ubicaciones, placeholder="Origen", value=State.mov_origen, on_change=State.set_mov_origen, width="200px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Destino", font_size="12px", color="gray"),
-                    rx.select(State.nombres_ubicaciones, placeholder="Destino", value=State.mov_destino, on_change=State.set_mov_destino, width="200px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Fecha", font_size="12px", color="gray"),
-                    rx.input(type="date", value=State.mov_fecha, on_change=State.set_mov_fecha, width="160px"),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Origen", font_size="12px", color="gray"), rx.select(State.nombres_ubicaciones, placeholder="Origen", value=State.mov_origen, on_change=State.set_mov_origen, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Destino", font_size="12px", color="gray"), rx.select(State.nombres_ubicaciones, placeholder="Destino", value=State.mov_destino, on_change=State.set_mov_destino, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.mov_fecha, on_change=State.set_mov_fecha, width="160px"), spacing="1"),
                 spacing="4", wrap="wrap",
             ),
-            rx.vstack(
-                rx.text("Observación", font_size="12px", color="gray"),
-                rx.input(value=State.mov_observacion, on_change=State.set_mov_observacion, width="400px"),
-                spacing="1",
-            ),
+            rx.vstack(rx.text("Observación", font_size="12px", color="gray"), rx.input(value=State.mov_observacion, on_change=State.set_mov_observacion, width="400px"), spacing="1"),
             rx.cond(State.mov_error != "", rx.callout(State.mov_error, color="red")),
             rx.cond(State.mov_exito != "", rx.callout(State.mov_exito, color="green")),
             rx.button("Registrar movimiento", on_click=State.registrar_transferencia, color_scheme="blue", size="3"),
             spacing="4", width="100%", max_width="700px",
             on_mount=State.cargar_productos_y_ubicaciones,
+        )
+    )
+
+
+def producto_row(prod: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(prod["codigo"]),
+        rx.table.cell(prod["descripcion"]),
+        rx.table.cell(prod["categoria"]),
+        rx.table.cell(
+            rx.hstack(
+                rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_producto(prod["id"], prod["descripcion"], prod["categoria"])),
+                rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_producto(prod["id"])),
+                spacing="2",
+            )
+        ),
+    )
+
+
+def page_stock_productos() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Productos", size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.button("+ Agregar producto", on_click=State.set_mostrar_form_prod(True), color_scheme="blue"),
+                rx.vstack(
+                    rx.text("Filtrar por categoría", font_size="12px", color="gray"),
+                    rx.select(
+                        ["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"],
+                        placeholder="Todas",
+                        value=State.prod_filtro_cat,
+                        on_change=State.set_prod_filtro_cat,
+                        width="180px",
+                    ),
+                    spacing="1",
+                ),
+                spacing="4", align="end",
+            ),
+            rx.cond(
+                State.mostrar_form_prod,
+                rx.box(
+                    rx.vstack(
+                        rx.hstack(
+                            rx.vstack(rx.text("Código", font_size="12px", color="gray"), rx.input(value=State.prod_codigo, on_change=State.set_prod_codigo, width="120px"), spacing="1"),
+                            rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_descripcion, on_change=State.set_prod_descripcion, width="300px"), spacing="1"),
+                            rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_categoria, on_change=State.set_prod_categoria, width="160px"), spacing="1"),
+                            spacing="4",
+                        ),
+                        rx.cond(State.prod_error != "", rx.callout(State.prod_error, color="red")),
+                        rx.hstack(
+                            rx.button("Guardar", on_click=State.agregar_producto, color_scheme="blue"),
+                            rx.button("Cancelar", on_click=State.set_mostrar_form_prod(False), color_scheme="gray"),
+                            spacing="3",
+                        ),
+                        spacing="3",
+                    ),
+                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%",
+                ),
+            ),
+            rx.cond(
+                State.prod_edit_id != "",
+                rx.box(
+                    rx.vstack(
+                        rx.text("Editando producto", font_weight="600"),
+                        rx.hstack(
+                            rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_edit_desc, on_change=State.set_prod_edit_desc, width="300px"), spacing="1"),
+                            rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_edit_cat, on_change=State.set_prod_edit_cat, width="160px"), spacing="1"),
+                            spacing="4",
+                        ),
+                        rx.hstack(
+                            rx.button("Guardar cambios", on_click=State.guardar_edit_producto, color_scheme="blue"),
+                            rx.button("Cancelar", on_click=State.set_prod_edit_id(""), color_scheme="gray"),
+                            spacing="3",
+                        ),
+                        spacing="3",
+                    ),
+                    padding="16px", border="1px solid #bfdbfe", border_radius="8px", background="white", width="100%",
+                ),
+            ),
+            rx.cond(State.prod_exito != "", rx.callout(State.prod_exito, color="green")),
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Código"),
+                        rx.table.column_header_cell("Descripción"),
+                        rx.table.column_header_cell("Categoría"),
+                        rx.table.column_header_cell(""),
+                    )
+                ),
+                rx.table.body(rx.foreach(State.productos_filtrados, producto_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+            on_mount=State.cargar_productos,
+        )
+    )
+
+
+def proveedor_row(prov: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(prov["nombre"]),
+        rx.table.cell(rx.cond(prov["responsable"], prov["responsable"], "-")),
+        rx.table.cell(rx.cond(prov["telefono"], prov["telefono"], "-")),
+        rx.table.cell(rx.cond(prov["email"], prov["email"], "-")),
+        rx.table.cell(rx.cond(prov["productos_que_vende"], prov["productos_que_vende"], "-")),
+        rx.table.cell(
+            rx.hstack(
+                rx.button("✏️", size="1", color_scheme="blue",
+                    on_click=State.iniciar_edit_proveedor(
+                        prov["id"], prov["nombre"],
+                        prov["responsable"], prov["telefono"],
+                        prov["email"], prov["direccion"],
+                        prov["productos_que_vende"], prov["observaciones"],
+                    )),
+                rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_proveedor(prov["id"])),
+                spacing="2",
+            )
+        ),
+    )
+
+
+def page_proveedores() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Proveedores", size="6"),
+            rx.divider(),
+            rx.button("+ Agregar proveedor", on_click=State.set_mostrar_form_prov(True), color_scheme="blue"),
+            rx.cond(
+                State.mostrar_form_prov,
+                rx.box(
+                    rx.vstack(
+                        rx.text(rx.cond(State.prov_edit_id != "", "Editar proveedor", "Nuevo proveedor"), font_weight="600", font_size="14px"),
+                        rx.hstack(
+                            rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.prov_nombre, on_change=State.set_prov_nombre, width="200px"), spacing="1"),
+                            rx.vstack(rx.text("Responsable", font_size="12px", color="gray"), rx.input(value=State.prov_responsable, on_change=State.set_prov_responsable, width="200px"), spacing="1"),
+                            rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.prov_telefono, on_change=State.set_prov_telefono, width="150px"), spacing="1"),
+                            spacing="4", wrap="wrap",
+                        ),
+                        rx.hstack(
+                            rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.prov_email, on_change=State.set_prov_email, width="220px"), spacing="1"),
+                            rx.vstack(rx.text("Dirección", font_size="12px", color="gray"), rx.input(value=State.prov_direccion, on_change=State.set_prov_direccion, width="220px"), spacing="1"),
+                            spacing="4", wrap="wrap",
+                        ),
+                        rx.vstack(rx.text("Productos que vende", font_size="12px", color="gray"), rx.input(value=State.prov_productos, on_change=State.set_prov_productos, width="450px"), spacing="1"),
+                        rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.prov_observaciones, on_change=State.set_prov_observaciones, width="450px", rows="2"), spacing="1"),
+                        rx.cond(State.prov_error != "", rx.callout(State.prov_error, color="red")),
+                        rx.hstack(
+                            rx.button(
+                                rx.cond(State.prov_edit_id != "", "Guardar cambios", "Guardar"),
+                                on_click=rx.cond(State.prov_edit_id != "", State.guardar_edit_proveedor, State.agregar_proveedor),
+                                color_scheme="blue",
+                            ),
+                            rx.button("Cancelar", on_click=State.set_mostrar_form_prov(False), color_scheme="gray"),
+                            spacing="3",
+                        ),
+                        spacing="3",
+                    ),
+                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%",
+                ),
+            ),
+            rx.cond(State.prov_exito != "", rx.callout(State.prov_exito, color="green")),
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Nombre"),
+                        rx.table.column_header_cell("Responsable"),
+                        rx.table.column_header_cell("Teléfono"),
+                        rx.table.column_header_cell("Email"),
+                        rx.table.column_header_cell("Productos"),
+                        rx.table.column_header_cell(""),
+                    )
+                ),
+                rx.table.body(rx.foreach(State.proveedores, proveedor_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+            on_mount=State.cargar_proveedores,
         )
     )
 
@@ -855,11 +1069,13 @@ def dashboard_page() -> rx.Component:
         rx.cond(State.pagina == "stock_actual", page_stock_actual(),
         rx.cond(State.pagina == "stock_entrada", page_stock_entrada(),
         rx.cond(State.pagina == "stock_salida", page_stock_salida(),
+        rx.cond(State.pagina == "stock_productos", page_stock_productos(),
+        rx.cond(State.pagina == "stock_proveedores", page_proveedores(),
         layout(rx.vstack(
             rx.heading("Bienvenido!", size="7"),
             rx.text("Seleccioná un módulo del sidebar.", color="gray"),
             spacing="4",
-        )))))))))
+        )))))))))))
 
 
 app = rx.App(theme=rx.theme(accent_color="blue", has_background=True))
