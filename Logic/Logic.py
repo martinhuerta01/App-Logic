@@ -79,9 +79,8 @@ class State(rx.State):
     prov_error: str = ""
     mostrar_form_prov: bool = False
     mostrar_form_prod: bool = False
-
-    # Terceros
     terceros: list[dict] = []
+    nombres_terceros: list[str] = []
     terc_nombre: str = ""
     terc_ciudad: str = ""
     terc_telefono: str = ""
@@ -96,11 +95,53 @@ class State(rx.State):
     terc_sel_nombre: str = ""
     terc_stock: list[dict] = []
 
+    # Servicios
+    servicios: list[dict] = []
+    serv_fecha: str = ""
+    serv_cliente_tipo: str = ""
+    serv_cliente_otro: str = ""
+    serv_es_serenisima: bool = False
+    serv_tipo: str = "INSTALACION"
+    serv_tipo_unidad: str = ""
+    serv_alcance: str = ""
+    serv_patente: str = ""
+    serv_responsable: str = ""
+    serv_responsable_tipo: str = ""
+    serv_tecnicos: str = ""
+    serv_estado: str = "PENDIENTE"
+    serv_observaciones: str = ""
+    serv_exito: str = ""
+    serv_error: str = ""
+    serv_filtro_estado: str = ""
+    serv_filtro_mes: str = ""
+    serv_filtro_anio: str = "2026"
+    serv_edit_id: str = ""
+
     @rx.var
     def productos_filtrados(self) -> list[dict]:
         if not self.prod_filtro_cat:
             return self.productos
         return [p for p in self.productos if p["categoria"] == self.prod_filtro_cat]
+
+    @rx.var
+    def responsables_opciones(self) -> list[str]:
+        base = ["EQUIPO 1", "EQUIPO 2", "VITACO", "ZARZA", "TALLER INTERNO"]
+        return base + self.nombres_terceros
+
+    @rx.var
+    def serv_cliente_final(self) -> str:
+        if self.serv_cliente_tipo == "OTRO":
+            return self.serv_cliente_otro
+        return self.serv_cliente_tipo
+
+    def set_serv_cliente_tipo(self, val: str):
+        self.serv_cliente_tipo = val
+        self.serv_es_serenisima = val == "LA SERENISIMA"
+
+    def set_serv_responsable_tipo(self, val: str):
+        self.serv_responsable_tipo = val
+        self.serv_responsable = val
+        self.serv_tecnicos = ""
 
     async def login(self):
         self.cargando = True
@@ -489,11 +530,16 @@ class State(rx.State):
         self.mostrar_form_prov = False
         await self.cargar_proveedores()
 
-    # Terceros
     async def cargar_terceros(self):
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.get(f"{API_URL}/terceros/")
-        self.terceros = r.json()
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                r = await client.get(f"{API_URL}/terceros/")
+            data = r.json()
+            self.terceros = data if isinstance(data, list) else []
+            self.nombres_terceros = [t["nombre"] for t in self.terceros]
+        except Exception:
+            self.terceros = []
+            self.nombres_terceros = []
 
     async def agregar_tercero(self):
         if not self.terc_nombre or not self.terc_ciudad:
@@ -566,6 +612,107 @@ class State(rx.State):
             item["stock_color"] = "red" if item["cantidad"] <= 0 else "green" if item["cantidad"] > 5 else "orange"
         self.terc_stock = raw
         self.pagina = "terceros_stock"
+
+    def reset_servicio(self):
+        self.serv_fecha = ""
+        self.serv_cliente_tipo = ""
+        self.serv_cliente_otro = ""
+        self.serv_es_serenisima = False
+        self.serv_tipo = "INSTALACION"
+        self.serv_tipo_unidad = ""
+        self.serv_alcance = ""
+        self.serv_patente = ""
+        self.serv_responsable = ""
+        self.serv_responsable_tipo = ""
+        self.serv_tecnicos = ""
+        self.serv_estado = "PENDIENTE"
+        self.serv_observaciones = ""
+        self.serv_exito = ""
+        self.serv_error = ""
+        self.serv_edit_id = ""
+
+    async def cargar_servicios(self):
+        params = {}
+        if self.serv_filtro_estado:
+            params["estado"] = self.serv_filtro_estado
+        if self.serv_filtro_mes:
+            params["mes"] = self.serv_filtro_mes
+        if self.serv_filtro_anio:
+            params["anio"] = self.serv_filtro_anio
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                r = await client.get(f"{API_URL}/servicios/", params=params)
+            raw = r.json()
+            if not isinstance(raw, list):
+                raw = []
+            for s in raw:
+                s["estado_color"] = {
+                    "PENDIENTE": "orange",
+                    "CONFIRMADO": "blue",
+                    "REALIZADO": "green",
+                    "SUSPENDIDO": "red",
+                    "REPROGRAMADO": "purple",
+                }.get(s.get("estado", ""), "gray")
+            self.servicios = raw
+        except Exception:
+            self.servicios = []
+
+    async def guardar_servicio(self):
+        cliente = self.serv_cliente_otro if self.serv_cliente_tipo == "OTRO" else self.serv_cliente_tipo
+        if not self.serv_fecha or not cliente or not self.serv_tipo:
+            self.serv_error = "Completá fecha, cliente y tipo"
+            return
+        responsable_final = self.serv_responsable_tipo
+        if self.serv_responsable_tipo in ["EQUIPO 1", "EQUIPO 2"] and self.serv_tecnicos:
+            responsable_final = f"{self.serv_responsable_tipo} ({self.serv_tecnicos})"
+        payload = {
+            "fecha": self.serv_fecha,
+            "cliente": cliente,
+            "es_serenisima": self.serv_es_serenisima,
+            "tipo_servicio": self.serv_tipo,
+            "tipo_unidad": self.serv_tipo_unidad or None,
+            "alcance": self.serv_alcance or None,
+            "patente": self.serv_patente or None,
+            "responsable": responsable_final or None,
+            "estado": self.serv_estado,
+            "observaciones": self.serv_observaciones or None,
+            "cargado_por": self.usuario,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if self.serv_edit_id:
+                r = await client.put(f"{API_URL}/servicios/{self.serv_edit_id}", json=payload)
+            else:
+                r = await client.post(f"{API_URL}/servicios/", json=payload)
+        if r.status_code == 200:
+            self.reset_servicio()
+            self.serv_exito = "Servicio guardado correctamente"
+            await self.cargar_servicios()
+        else:
+            self.serv_error = "Error al guardar servicio"
+
+    async def eliminar_servicio(self, serv_id: str):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.delete(f"{API_URL}/servicios/{serv_id}")
+        await self.cargar_servicios()
+
+    def iniciar_edit_servicio(self, serv_id: str, fecha: str, cliente: str, es_seren: bool, tipo: str, unidad, alcance, patente, responsable, estado: str, obs):
+        self.serv_edit_id = serv_id
+        self.serv_fecha = fecha
+        if es_seren:
+            self.serv_cliente_tipo = "LA SERENISIMA"
+        else:
+            self.serv_cliente_tipo = "OTRO"
+            self.serv_cliente_otro = cliente
+        self.serv_es_serenisima = es_seren
+        self.serv_tipo = tipo
+        self.serv_tipo_unidad = unidad or ""
+        self.serv_alcance = alcance or ""
+        self.serv_patente = patente or ""
+        self.serv_responsable_tipo = responsable or ""
+        self.serv_responsable = responsable or ""
+        self.serv_estado = estado
+        self.serv_observaciones = obs or ""
+        self.pagina = "serv_cargar"
 
 
 MODULOS = [
@@ -757,21 +904,19 @@ def page_historial() -> rx.Component:
                 spacing="4", align="end",
             ),
             rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Fecha"),
-                        rx.table.column_header_cell("Técnico"),
-                        rx.table.column_header_cell("Tipo"),
-                        rx.table.column_header_cell("Entrada"),
-                        rx.table.column_header_cell("Salida"),
-                        rx.table.column_header_cell("Hs trabajadas"),
-                        rx.table.column_header_cell("Diferencia"),
-                        rx.table.column_header_cell("Inst."),
-                        rx.table.column_header_cell("Desins."),
-                        rx.table.column_header_cell("Rev."),
-                        rx.table.column_header_cell(""),
-                    )
-                ),
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Fecha"),
+                    rx.table.column_header_cell("Técnico"),
+                    rx.table.column_header_cell("Tipo"),
+                    rx.table.column_header_cell("Entrada"),
+                    rx.table.column_header_cell("Salida"),
+                    rx.table.column_header_cell("Hs trabajadas"),
+                    rx.table.column_header_cell("Diferencia"),
+                    rx.table.column_header_cell("Inst."),
+                    rx.table.column_header_cell("Desins."),
+                    rx.table.column_header_cell("Rev."),
+                    rx.table.column_header_cell(""),
+                )),
                 rx.table.body(rx.foreach(State.jornadas, jornada_row)),
                 width="100%",
             ),
@@ -802,15 +947,13 @@ def page_tecnicos() -> rx.Component:
                 spacing="3", align="center",
             ),
             rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Nombre"),
-                        rx.table.column_header_cell("Teléfono"),
-                        rx.table.column_header_cell("Vehículo"),
-                        rx.table.column_header_cell("Patente"),
-                        rx.table.column_header_cell(""),
-                    )
-                ),
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Nombre"),
+                    rx.table.column_header_cell("Teléfono"),
+                    rx.table.column_header_cell("Vehículo"),
+                    rx.table.column_header_cell("Patente"),
+                    rx.table.column_header_cell(""),
+                )),
                 rx.table.body(rx.foreach(State.empleados, empleado_row)),
                 width="100%",
             ),
@@ -847,19 +990,17 @@ def page_estadisticas() -> rx.Component:
             ),
             rx.text("Resumen por técnico", font_size="14px", font_weight="700", color="#1e3a8a"),
             rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Técnico"),
-                        rx.table.column_header_cell("Días trabajados"),
-                        rx.table.column_header_cell("Hs totales"),
-                        rx.table.column_header_cell("Extras"),
-                        rx.table.column_header_cell("Debe"),
-                        rx.table.column_header_cell("Inst."),
-                        rx.table.column_header_cell("Desins."),
-                        rx.table.column_header_cell("Rev."),
-                        rx.table.column_header_cell("Ausencias"),
-                    )
-                ),
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Técnico"),
+                    rx.table.column_header_cell("Días trabajados"),
+                    rx.table.column_header_cell("Hs totales"),
+                    rx.table.column_header_cell("Extras"),
+                    rx.table.column_header_cell("Debe"),
+                    rx.table.column_header_cell("Inst."),
+                    rx.table.column_header_cell("Desins."),
+                    rx.table.column_header_cell("Rev."),
+                    rx.table.column_header_cell("Ausencias"),
+                )),
                 rx.table.body(rx.foreach(State.stats_resumen, stats_resumen_row)),
                 width="100%",
             ),
@@ -910,15 +1051,13 @@ def page_stock_actual() -> rx.Component:
                 spacing="4", align="end",
             ),
             rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Código"),
-                        rx.table.column_header_cell("Descripción"),
-                        rx.table.column_header_cell("Categoría"),
-                        rx.table.column_header_cell("Ubicación"),
-                        rx.table.column_header_cell("Cantidad"),
-                    )
-                ),
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Código"),
+                    rx.table.column_header_cell("Descripción"),
+                    rx.table.column_header_cell("Categoría"),
+                    rx.table.column_header_cell("Ubicación"),
+                    rx.table.column_header_cell("Cantidad"),
+                )),
                 rx.table.body(rx.foreach(State.stock_actual, stock_row)),
                 width="100%",
             ),
@@ -981,13 +1120,11 @@ def producto_row(prod: dict) -> rx.Component:
         rx.table.cell(prod["codigo"]),
         rx.table.cell(prod["descripcion"]),
         rx.table.cell(prod["categoria"]),
-        rx.table.cell(
-            rx.hstack(
-                rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_producto(prod["id"], prod["descripcion"], prod["categoria"])),
-                rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_producto(prod["id"])),
-                spacing="2",
-            )
-        ),
+        rx.table.cell(rx.hstack(
+            rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_producto(prod["id"], prod["descripcion"], prod["categoria"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_producto(prod["id"])),
+            spacing="2",
+        )),
     )
 
 
@@ -998,64 +1135,37 @@ def page_stock_productos() -> rx.Component:
             rx.divider(),
             rx.hstack(
                 rx.button("+ Agregar producto", on_click=State.set_mostrar_form_prod(True), color_scheme="blue"),
-                rx.vstack(
-                    rx.text("Filtrar por categoría", font_size="12px", color="gray"),
-                    rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], placeholder="Todas", value=State.prod_filtro_cat, on_change=State.set_prod_filtro_cat, width="180px"),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Filtrar por categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], placeholder="Todas", value=State.prod_filtro_cat, on_change=State.set_prod_filtro_cat, width="180px"), spacing="1"),
                 spacing="4", align="end",
             ),
-            rx.cond(
-                State.mostrar_form_prod,
-                rx.box(
-                    rx.vstack(
-                        rx.hstack(
-                            rx.vstack(rx.text("Código", font_size="12px", color="gray"), rx.input(value=State.prod_codigo, on_change=State.set_prod_codigo, width="120px"), spacing="1"),
-                            rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_descripcion, on_change=State.set_prod_descripcion, width="300px"), spacing="1"),
-                            rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_categoria, on_change=State.set_prod_categoria, width="160px"), spacing="1"),
-                            spacing="4",
-                        ),
-                        rx.cond(State.prod_error != "", rx.callout(State.prod_error, color="red")),
-                        rx.hstack(
-                            rx.button("Guardar", on_click=State.agregar_producto, color_scheme="blue"),
-                            rx.button("Cancelar", on_click=State.set_mostrar_form_prod(False), color_scheme="gray"),
-                            spacing="3",
-                        ),
-                        spacing="3",
+            rx.cond(State.mostrar_form_prod,
+                rx.box(rx.vstack(
+                    rx.hstack(
+                        rx.vstack(rx.text("Código", font_size="12px", color="gray"), rx.input(value=State.prod_codigo, on_change=State.set_prod_codigo, width="120px"), spacing="1"),
+                        rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_descripcion, on_change=State.set_prod_descripcion, width="300px"), spacing="1"),
+                        rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_categoria, on_change=State.set_prod_categoria, width="160px"), spacing="1"),
+                        spacing="4",
                     ),
-                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%",
-                ),
+                    rx.cond(State.prod_error != "", rx.callout(State.prod_error, color="red")),
+                    rx.hstack(rx.button("Guardar", on_click=State.agregar_producto, color_scheme="blue"), rx.button("Cancelar", on_click=State.set_mostrar_form_prod(False), color_scheme="gray"), spacing="3"),
+                    spacing="3"),
+                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%"),
             ),
-            rx.cond(
-                State.prod_edit_id != "",
-                rx.box(
-                    rx.vstack(
-                        rx.text("Editando producto", font_weight="600"),
-                        rx.hstack(
-                            rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_edit_desc, on_change=State.set_prod_edit_desc, width="300px"), spacing="1"),
-                            rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_edit_cat, on_change=State.set_prod_edit_cat, width="160px"), spacing="1"),
-                            spacing="4",
-                        ),
-                        rx.hstack(
-                            rx.button("Guardar cambios", on_click=State.guardar_edit_producto, color_scheme="blue"),
-                            rx.button("Cancelar", on_click=State.set_prod_edit_id(""), color_scheme="gray"),
-                            spacing="3",
-                        ),
-                        spacing="3",
+            rx.cond(State.prod_edit_id != "",
+                rx.box(rx.vstack(
+                    rx.text("Editando producto", font_weight="600"),
+                    rx.hstack(
+                        rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_edit_desc, on_change=State.set_prod_edit_desc, width="300px"), spacing="1"),
+                        rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_edit_cat, on_change=State.set_prod_edit_cat, width="160px"), spacing="1"),
+                        spacing="4",
                     ),
-                    padding="16px", border="1px solid #bfdbfe", border_radius="8px", background="white", width="100%",
-                ),
+                    rx.hstack(rx.button("Guardar cambios", on_click=State.guardar_edit_producto, color_scheme="blue"), rx.button("Cancelar", on_click=State.set_prod_edit_id(""), color_scheme="gray"), spacing="3"),
+                    spacing="3"),
+                    padding="16px", border="1px solid #bfdbfe", border_radius="8px", background="white", width="100%"),
             ),
             rx.cond(State.prod_exito != "", rx.callout(State.prod_exito, color="green")),
             rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Código"),
-                        rx.table.column_header_cell("Descripción"),
-                        rx.table.column_header_cell("Categoría"),
-                        rx.table.column_header_cell(""),
-                    )
-                ),
+                rx.table.header(rx.table.row(rx.table.column_header_cell("Código"), rx.table.column_header_cell("Descripción"), rx.table.column_header_cell("Categoría"), rx.table.column_header_cell(""))),
                 rx.table.body(rx.foreach(State.productos_filtrados, producto_row)),
                 width="100%",
             ),
@@ -1072,14 +1182,11 @@ def proveedor_row(prov: dict) -> rx.Component:
         rx.table.cell(rx.cond(prov["telefono"], prov["telefono"], "-")),
         rx.table.cell(rx.cond(prov["email"], prov["email"], "-")),
         rx.table.cell(rx.cond(prov["productos_que_vende"], prov["productos_que_vende"], "-")),
-        rx.table.cell(
-            rx.hstack(
-                rx.button("✏️", size="1", color_scheme="blue",
-                    on_click=State.iniciar_edit_proveedor(prov["id"], prov["nombre"], prov["responsable"], prov["telefono"], prov["email"], prov["direccion"], prov["productos_que_vende"], prov["observaciones"])),
-                rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_proveedor(prov["id"])),
-                spacing="2",
-            )
-        ),
+        rx.table.cell(rx.hstack(
+            rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_proveedor(prov["id"], prov["nombre"], prov["responsable"], prov["telefono"], prov["email"], prov["direccion"], prov["productos_que_vende"], prov["observaciones"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_proveedor(prov["id"])),
+            spacing="2",
+        )),
     )
 
 
@@ -1089,47 +1196,34 @@ def page_proveedores() -> rx.Component:
             rx.heading("Proveedores", size="6"),
             rx.divider(),
             rx.button("+ Agregar proveedor", on_click=State.set_mostrar_form_prov(True), color_scheme="blue"),
-            rx.cond(
-                State.mostrar_form_prov,
-                rx.box(
-                    rx.vstack(
-                        rx.text(rx.cond(State.prov_edit_id != "", "Editar proveedor", "Nuevo proveedor"), font_weight="600", font_size="14px"),
-                        rx.hstack(
-                            rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.prov_nombre, on_change=State.set_prov_nombre, width="200px"), spacing="1"),
-                            rx.vstack(rx.text("Responsable", font_size="12px", color="gray"), rx.input(value=State.prov_responsable, on_change=State.set_prov_responsable, width="200px"), spacing="1"),
-                            rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.prov_telefono, on_change=State.set_prov_telefono, width="150px"), spacing="1"),
-                            spacing="4", wrap="wrap",
-                        ),
-                        rx.hstack(
-                            rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.prov_email, on_change=State.set_prov_email, width="220px"), spacing="1"),
-                            rx.vstack(rx.text("Dirección", font_size="12px", color="gray"), rx.input(value=State.prov_direccion, on_change=State.set_prov_direccion, width="220px"), spacing="1"),
-                            spacing="4", wrap="wrap",
-                        ),
-                        rx.vstack(rx.text("Productos que vende", font_size="12px", color="gray"), rx.input(value=State.prov_productos, on_change=State.set_prov_productos, width="450px"), spacing="1"),
-                        rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.prov_observaciones, on_change=State.set_prov_observaciones, width="450px", rows="2"), spacing="1"),
-                        rx.cond(State.prov_error != "", rx.callout(State.prov_error, color="red")),
-                        rx.hstack(
-                            rx.button(rx.cond(State.prov_edit_id != "", "Guardar cambios", "Guardar"), on_click=rx.cond(State.prov_edit_id != "", State.guardar_edit_proveedor, State.agregar_proveedor), color_scheme="blue"),
-                            rx.button("Cancelar", on_click=State.set_mostrar_form_prov(False), color_scheme="gray"),
-                            spacing="3",
-                        ),
+            rx.cond(State.mostrar_form_prov,
+                rx.box(rx.vstack(
+                    rx.text(rx.cond(State.prov_edit_id != "", "Editar proveedor", "Nuevo proveedor"), font_weight="600", font_size="14px"),
+                    rx.hstack(
+                        rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.prov_nombre, on_change=State.set_prov_nombre, width="200px"), spacing="1"),
+                        rx.vstack(rx.text("Responsable", font_size="12px", color="gray"), rx.input(value=State.prov_responsable, on_change=State.set_prov_responsable, width="200px"), spacing="1"),
+                        rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.prov_telefono, on_change=State.set_prov_telefono, width="150px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.hstack(
+                        rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.prov_email, on_change=State.set_prov_email, width="220px"), spacing="1"),
+                        rx.vstack(rx.text("Dirección", font_size="12px", color="gray"), rx.input(value=State.prov_direccion, on_change=State.set_prov_direccion, width="220px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.vstack(rx.text("Productos que vende", font_size="12px", color="gray"), rx.input(value=State.prov_productos, on_change=State.set_prov_productos, width="450px"), spacing="1"),
+                    rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.prov_observaciones, on_change=State.set_prov_observaciones, width="450px", rows="2"), spacing="1"),
+                    rx.cond(State.prov_error != "", rx.callout(State.prov_error, color="red")),
+                    rx.hstack(
+                        rx.button(rx.cond(State.prov_edit_id != "", "Guardar cambios", "Guardar"), on_click=rx.cond(State.prov_edit_id != "", State.guardar_edit_proveedor, State.agregar_proveedor), color_scheme="blue"),
+                        rx.button("Cancelar", on_click=State.set_mostrar_form_prov(False), color_scheme="gray"),
                         spacing="3",
                     ),
-                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%",
-                ),
+                    spacing="3"),
+                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%"),
             ),
             rx.cond(State.prov_exito != "", rx.callout(State.prov_exito, color="green")),
             rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Nombre"),
-                        rx.table.column_header_cell("Responsable"),
-                        rx.table.column_header_cell("Teléfono"),
-                        rx.table.column_header_cell("Email"),
-                        rx.table.column_header_cell("Productos"),
-                        rx.table.column_header_cell(""),
-                    )
-                ),
+                rx.table.header(rx.table.row(rx.table.column_header_cell("Nombre"), rx.table.column_header_cell("Responsable"), rx.table.column_header_cell("Teléfono"), rx.table.column_header_cell("Email"), rx.table.column_header_cell("Productos"), rx.table.column_header_cell(""))),
                 rx.table.body(rx.foreach(State.proveedores, proveedor_row)),
                 width="100%",
             ),
@@ -1146,17 +1240,12 @@ def tercero_row(terc: dict) -> rx.Component:
         rx.table.cell(rx.cond(terc["empresa"], terc["empresa"], "-")),
         rx.table.cell(rx.cond(terc["telefono"], terc["telefono"], "-")),
         rx.table.cell(rx.cond(terc["email"], terc["email"], "-")),
-        rx.table.cell(
-            rx.hstack(
-                rx.button("📦", size="1", color_scheme="orange",
-                    on_click=State.ver_stock_tercero(terc["id"], terc["nombre"])),
-                rx.button("✏️", size="1", color_scheme="blue",
-                    on_click=State.iniciar_edit_tercero(terc["id"], terc["nombre"], terc["ciudad"], terc["telefono"], terc["email"], terc["empresa"], terc["observaciones"])),
-                rx.button("🗑", size="1", color_scheme="red",
-                    on_click=State.eliminar_tercero(terc["id"])),
-                spacing="2",
-            )
-        ),
+        rx.table.cell(rx.hstack(
+            rx.button("📦", size="1", color_scheme="orange", on_click=State.ver_stock_tercero(terc["id"], terc["nombre"])),
+            rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_tercero(terc["id"], terc["nombre"], terc["ciudad"], terc["telefono"], terc["email"], terc["empresa"], terc["observaciones"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_tercero(terc["id"])),
+            spacing="2",
+        )),
     )
 
 
@@ -1175,46 +1264,33 @@ def page_terceros_lista() -> rx.Component:
             rx.heading("Terceros", size="6"),
             rx.divider(),
             rx.button("+ Agregar tercero", on_click=State.set_mostrar_form_terc(True), color_scheme="blue"),
-            rx.cond(
-                State.mostrar_form_terc,
-                rx.box(
-                    rx.vstack(
-                        rx.text(rx.cond(State.terc_edit_id != "", "Editar tercero", "Nuevo tercero"), font_weight="600", font_size="14px"),
-                        rx.hstack(
-                            rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.terc_nombre, on_change=State.set_terc_nombre, width="200px"), spacing="1"),
-                            rx.vstack(rx.text("Ciudad", font_size="12px", color="gray"), rx.input(value=State.terc_ciudad, on_change=State.set_terc_ciudad, width="160px"), spacing="1"),
-                            rx.vstack(rx.text("Empresa", font_size="12px", color="gray"), rx.input(value=State.terc_empresa, on_change=State.set_terc_empresa, width="180px"), spacing="1"),
-                            spacing="4", wrap="wrap",
-                        ),
-                        rx.hstack(
-                            rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.terc_telefono, on_change=State.set_terc_telefono, width="160px"), spacing="1"),
-                            rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.terc_email, on_change=State.set_terc_email, width="220px"), spacing="1"),
-                            spacing="4", wrap="wrap",
-                        ),
-                        rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.terc_observaciones, on_change=State.set_terc_observaciones, width="450px", rows="2"), spacing="1"),
-                        rx.cond(State.terc_error != "", rx.callout(State.terc_error, color="red")),
-                        rx.hstack(
-                            rx.button(rx.cond(State.terc_edit_id != "", "Guardar cambios", "Guardar"), on_click=rx.cond(State.terc_edit_id != "", State.guardar_edit_tercero, State.agregar_tercero), color_scheme="blue"),
-                            rx.button("Cancelar", on_click=State.set_mostrar_form_terc(False), color_scheme="gray"),
-                            spacing="3",
-                        ),
+            rx.cond(State.mostrar_form_terc,
+                rx.box(rx.vstack(
+                    rx.text(rx.cond(State.terc_edit_id != "", "Editar tercero", "Nuevo tercero"), font_weight="600", font_size="14px"),
+                    rx.hstack(
+                        rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.terc_nombre, on_change=State.set_terc_nombre, width="200px"), spacing="1"),
+                        rx.vstack(rx.text("Ciudad", font_size="12px", color="gray"), rx.input(value=State.terc_ciudad, on_change=State.set_terc_ciudad, width="160px"), spacing="1"),
+                        rx.vstack(rx.text("Empresa", font_size="12px", color="gray"), rx.input(value=State.terc_empresa, on_change=State.set_terc_empresa, width="180px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.hstack(
+                        rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.terc_telefono, on_change=State.set_terc_telefono, width="160px"), spacing="1"),
+                        rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.terc_email, on_change=State.set_terc_email, width="220px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.terc_observaciones, on_change=State.set_terc_observaciones, width="450px", rows="2"), spacing="1"),
+                    rx.cond(State.terc_error != "", rx.callout(State.terc_error, color="red")),
+                    rx.hstack(
+                        rx.button(rx.cond(State.terc_edit_id != "", "Guardar cambios", "Guardar"), on_click=rx.cond(State.terc_edit_id != "", State.guardar_edit_tercero, State.agregar_tercero), color_scheme="blue"),
+                        rx.button("Cancelar", on_click=State.set_mostrar_form_terc(False), color_scheme="gray"),
                         spacing="3",
                     ),
-                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%",
-                ),
+                    spacing="3"),
+                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%"),
             ),
             rx.cond(State.terc_exito != "", rx.callout(State.terc_exito, color="green")),
             rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Nombre"),
-                        rx.table.column_header_cell("Ciudad"),
-                        rx.table.column_header_cell("Empresa"),
-                        rx.table.column_header_cell("Teléfono"),
-                        rx.table.column_header_cell("Email"),
-                        rx.table.column_header_cell(""),
-                    )
-                ),
+                rx.table.header(rx.table.row(rx.table.column_header_cell("Nombre"), rx.table.column_header_cell("Ciudad"), rx.table.column_header_cell("Empresa"), rx.table.column_header_cell("Teléfono"), rx.table.column_header_cell("Email"), rx.table.column_header_cell(""))),
                 rx.table.body(rx.foreach(State.terceros, tercero_row)),
                 width="100%",
             ),
@@ -1236,20 +1312,127 @@ def page_terceros_stock() -> rx.Component:
             rx.cond(
                 State.terc_stock,
                 rx.table.root(
-                    rx.table.header(
-                        rx.table.row(
-                            rx.table.column_header_cell("Código"),
-                            rx.table.column_header_cell("Descripción"),
-                            rx.table.column_header_cell("Categoría"),
-                            rx.table.column_header_cell("Cantidad"),
-                        )
-                    ),
+                    rx.table.header(rx.table.row(rx.table.column_header_cell("Código"), rx.table.column_header_cell("Descripción"), rx.table.column_header_cell("Categoría"), rx.table.column_header_cell("Cantidad"))),
                     rx.table.body(rx.foreach(State.terc_stock, terc_stock_row)),
                     width="100%",
                 ),
                 rx.text("Sin stock registrado para este tercero.", color="gray"),
             ),
             spacing="4", width="100%",
+        )
+    )
+
+
+def servicio_row(serv: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(serv["fecha"]),
+        rx.table.cell(serv["cliente"]),
+        rx.table.cell(serv["tipo_servicio"]),
+        rx.table.cell(rx.cond(serv["tipo_unidad"], serv["tipo_unidad"], rx.cond(serv["alcance"], serv["alcance"], "-"))),
+        rx.table.cell(rx.cond(serv["patente"], serv["patente"], "-")),
+        rx.table.cell(rx.cond(serv["responsable"], serv["responsable"], "-")),
+        rx.table.cell(rx.text(serv["estado"], color=serv["estado_color"], font_weight="600")),
+        rx.table.cell(rx.hstack(
+            rx.button("✏️", size="1", color_scheme="blue",
+                on_click=State.iniciar_edit_servicio(
+                    serv["id"], serv["fecha"], serv["cliente"], serv["es_serenisima"],
+                    serv["tipo_servicio"], serv["tipo_unidad"], serv["alcance"],
+                    serv["patente"], serv["responsable"], serv["estado"], serv["observaciones"]
+                )),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_servicio(serv["id"])),
+            spacing="2",
+        )),
+    )
+
+
+def page_serv_cargar() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading(rx.cond(State.serv_edit_id != "", "Editar Servicio", "Cargar Servicio"), size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.serv_fecha, on_change=State.set_serv_fecha, width="160px"), spacing="1"),
+                rx.vstack(
+                    rx.text("Cliente", font_size="12px", color="gray"),
+                    rx.select(["LA SERENISIMA", "OTRO"], placeholder="Seleccionar", value=State.serv_cliente_tipo, on_change=State.set_serv_cliente_tipo, width="200px"),
+                    spacing="1",
+                ),
+                rx.vstack(
+                    rx.text("Tipo de servicio", font_size="12px", color="gray"),
+                    rx.select(["INSTALACION", "DESINSTALACION", "REVISION"], value=State.serv_tipo, on_change=State.set_serv_tipo, width="180px"),
+                    spacing="1",
+                ),
+                spacing="4", wrap="wrap",
+            ),
+            rx.cond(
+                State.serv_cliente_tipo == "OTRO",
+                rx.vstack(rx.text("Nombre del cliente", font_size="12px", color="gray"), rx.input(placeholder="Ingresá el nombre", value=State.serv_cliente_otro, on_change=State.set_serv_cliente_otro, width="300px"), spacing="1"),
+            ),
+            rx.cond(
+                State.serv_es_serenisima,
+                rx.vstack(rx.text("Tipo de unidad", font_size="12px", color="gray"), rx.select(["CHASIS", "SEMI", "TRACTOR"], placeholder="Seleccionar", value=State.serv_tipo_unidad, on_change=State.set_serv_tipo_unidad, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Alcance", font_size="12px", color="gray"), rx.select(["GPS", "LECTORA", "GPS Y LECTORA"], placeholder="Seleccionar", value=State.serv_alcance, on_change=State.set_serv_alcance, width="200px"), spacing="1"),
+            ),
+            rx.hstack(
+                rx.vstack(rx.text("Patente / Dominio", font_size="12px", color="gray"), rx.input(value=State.serv_patente, on_change=State.set_serv_patente, width="160px"), spacing="1"),
+                rx.vstack(
+                    rx.text("Responsable", font_size="12px", color="gray"),
+                    rx.select(State.responsables_opciones, placeholder="Seleccionar", value=State.serv_responsable_tipo, on_change=State.set_serv_responsable_tipo, width="220px"),
+                    spacing="1",
+                ),
+                rx.vstack(
+                    rx.text("Estado", font_size="12px", color="gray"),
+                    rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO", "SUSPENDIDO", "REPROGRAMADO"], value=State.serv_estado, on_change=State.set_serv_estado, width="180px"),
+                    spacing="1",
+                ),
+                spacing="4", wrap="wrap",
+            ),
+            rx.cond(
+                (State.serv_responsable_tipo == "EQUIPO 1") | (State.serv_responsable_tipo == "EQUIPO 2"),
+                rx.vstack(rx.text("Técnicos del equipo", font_size="12px", color="gray"), rx.input(placeholder="Ej: Maxi, Lautaro", value=State.serv_tecnicos, on_change=State.set_serv_tecnicos, width="300px"), spacing="1"),
+            ),
+            rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.serv_observaciones, on_change=State.set_serv_observaciones, width="500px", rows="3"), spacing="1"),
+            rx.cond(State.serv_error != "", rx.callout(State.serv_error, color="red")),
+            rx.cond(State.serv_exito != "", rx.callout(State.serv_exito, color="green")),
+            rx.hstack(
+                rx.button(rx.cond(State.serv_edit_id != "", "Guardar cambios", "Guardar servicio"), on_click=State.guardar_servicio, color_scheme="blue", size="3"),
+                rx.cond(State.serv_edit_id != "", rx.button("Cancelar", on_click=State.reset_servicio, color_scheme="gray", size="3")),
+                spacing="3",
+            ),
+            spacing="4", width="100%", max_width="700px",
+            on_mount=State.cargar_terceros,
+        )
+    )
+
+
+def page_serv_lista() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Lista de Servicios", size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO", "SUSPENDIDO", "REPROGRAMADO"], placeholder="Todos", value=State.serv_filtro_estado, on_change=State.set_serv_filtro_estado, width="180px"), spacing="1"),
+                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.serv_filtro_mes, on_change=State.set_serv_filtro_mes, width="100px"), spacing="1"),
+                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.serv_filtro_anio, on_change=State.set_serv_filtro_anio, width="100px"), spacing="1"),
+                rx.button("Buscar", on_click=State.cargar_servicios, color_scheme="blue"),
+                spacing="4", align="end",
+            ),
+            rx.table.root(
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Fecha"),
+                    rx.table.column_header_cell("Cliente"),
+                    rx.table.column_header_cell("Tipo"),
+                    rx.table.column_header_cell("Unidad/Alcance"),
+                    rx.table.column_header_cell("Patente"),
+                    rx.table.column_header_cell("Responsable"),
+                    rx.table.column_header_cell("Estado"),
+                    rx.table.column_header_cell(""),
+                )),
+                rx.table.body(rx.foreach(State.servicios, servicio_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+            on_mount=State.cargar_servicios,
         )
     )
 
@@ -1267,11 +1450,13 @@ def dashboard_page() -> rx.Component:
         rx.cond(State.pagina == "stock_proveedores", page_proveedores(),
         rx.cond(State.pagina == "terceros_lista", page_terceros_lista(),
         rx.cond(State.pagina == "terceros_stock", page_terceros_stock(),
+        rx.cond(State.pagina == "serv_cargar", page_serv_cargar(),
+        rx.cond(State.pagina == "serv_lista", page_serv_lista(),
         layout(rx.vstack(
             rx.heading("Bienvenido!", size="7"),
             rx.text("Seleccioná un módulo del sidebar.", color="gray"),
             spacing="4",
-        )))))))))))))
+        )))))))))))))))
 
 
 app = rx.App(theme=rx.theme(accent_color="blue", has_background=True))
