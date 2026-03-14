@@ -80,6 +80,22 @@ class State(rx.State):
     mostrar_form_prov: bool = False
     mostrar_form_prod: bool = False
 
+    # Terceros
+    terceros: list[dict] = []
+    terc_nombre: str = ""
+    terc_ciudad: str = ""
+    terc_telefono: str = ""
+    terc_email: str = ""
+    terc_empresa: str = ""
+    terc_observaciones: str = ""
+    terc_edit_id: str = ""
+    terc_exito: str = ""
+    terc_error: str = ""
+    mostrar_form_terc: bool = False
+    terc_sel_id: str = ""
+    terc_sel_nombre: str = ""
+    terc_stock: list[dict] = []
+
     @rx.var
     def productos_filtrados(self) -> list[dict]:
         if not self.prod_filtro_cat:
@@ -472,6 +488,84 @@ class State(rx.State):
         self.prov_edit_id = ""
         self.mostrar_form_prov = False
         await self.cargar_proveedores()
+
+    # Terceros
+    async def cargar_terceros(self):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/terceros/")
+        self.terceros = r.json()
+
+    async def agregar_tercero(self):
+        if not self.terc_nombre or not self.terc_ciudad:
+            self.terc_error = "Nombre y ciudad son obligatorios"
+            return
+        payload = {
+            "nombre": self.terc_nombre,
+            "ciudad": self.terc_ciudad,
+            "telefono": self.terc_telefono or None,
+            "email": self.terc_email or None,
+            "empresa": self.terc_empresa or None,
+            "observaciones": self.terc_observaciones or None,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(f"{API_URL}/terceros/", json=payload)
+        if r.status_code == 200:
+            self.terc_nombre = ""
+            self.terc_ciudad = ""
+            self.terc_telefono = ""
+            self.terc_email = ""
+            self.terc_empresa = ""
+            self.terc_observaciones = ""
+            self.terc_exito = "Tercero agregado"
+            self.terc_error = ""
+            self.mostrar_form_terc = False
+            await self.cargar_terceros()
+        else:
+            self.terc_error = "Error al agregar tercero"
+
+    async def eliminar_tercero(self, terc_id: str):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.delete(f"{API_URL}/terceros/{terc_id}")
+        await self.cargar_terceros()
+
+    def iniciar_edit_tercero(self, terc_id: str, nombre: str, ciudad: str, telefono, email, empresa, obs):
+        self.terc_edit_id = terc_id
+        self.terc_nombre = nombre or ""
+        self.terc_ciudad = ciudad or ""
+        self.terc_telefono = telefono or ""
+        self.terc_email = email or ""
+        self.terc_empresa = empresa or ""
+        self.terc_observaciones = obs or ""
+        self.mostrar_form_terc = True
+
+    async def guardar_edit_tercero(self):
+        payload = {
+            "nombre": self.terc_nombre,
+            "ciudad": self.terc_ciudad,
+            "telefono": self.terc_telefono or None,
+            "email": self.terc_email or None,
+            "empresa": self.terc_empresa or None,
+            "observaciones": self.terc_observaciones or None,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.put(f"{API_URL}/terceros/{self.terc_edit_id}", json=payload)
+        self.terc_edit_id = ""
+        self.mostrar_form_terc = False
+        await self.cargar_terceros()
+
+    async def ver_stock_tercero(self, terc_id: str, terc_nombre: str):
+        self.terc_sel_id = terc_id
+        self.terc_sel_nombre = terc_nombre
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/terceros/{terc_id}/stock")
+        raw = r.json()
+        for item in raw:
+            item["prod_codigo"] = item.get("productos", {}).get("codigo", "")
+            item["prod_desc"] = item.get("productos", {}).get("descripcion", "")
+            item["prod_cat"] = item.get("productos", {}).get("categoria", "")
+            item["stock_color"] = "red" if item["cantidad"] <= 0 else "green" if item["cantidad"] > 5 else "orange"
+        self.terc_stock = raw
+        self.pagina = "terceros_stock"
 
 
 MODULOS = [
@@ -906,13 +1000,7 @@ def page_stock_productos() -> rx.Component:
                 rx.button("+ Agregar producto", on_click=State.set_mostrar_form_prod(True), color_scheme="blue"),
                 rx.vstack(
                     rx.text("Filtrar por categoría", font_size="12px", color="gray"),
-                    rx.select(
-                        ["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"],
-                        placeholder="Todas",
-                        value=State.prod_filtro_cat,
-                        on_change=State.set_prod_filtro_cat,
-                        width="180px",
-                    ),
+                    rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], placeholder="Todas", value=State.prod_filtro_cat, on_change=State.set_prod_filtro_cat, width="180px"),
                     spacing="1",
                 ),
                 spacing="4", align="end",
@@ -987,12 +1075,7 @@ def proveedor_row(prov: dict) -> rx.Component:
         rx.table.cell(
             rx.hstack(
                 rx.button("✏️", size="1", color_scheme="blue",
-                    on_click=State.iniciar_edit_proveedor(
-                        prov["id"], prov["nombre"],
-                        prov["responsable"], prov["telefono"],
-                        prov["email"], prov["direccion"],
-                        prov["productos_que_vende"], prov["observaciones"],
-                    )),
+                    on_click=State.iniciar_edit_proveedor(prov["id"], prov["nombre"], prov["responsable"], prov["telefono"], prov["email"], prov["direccion"], prov["productos_que_vende"], prov["observaciones"])),
                 rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_proveedor(prov["id"])),
                 spacing="2",
             )
@@ -1026,11 +1109,7 @@ def page_proveedores() -> rx.Component:
                         rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.prov_observaciones, on_change=State.set_prov_observaciones, width="450px", rows="2"), spacing="1"),
                         rx.cond(State.prov_error != "", rx.callout(State.prov_error, color="red")),
                         rx.hstack(
-                            rx.button(
-                                rx.cond(State.prov_edit_id != "", "Guardar cambios", "Guardar"),
-                                on_click=rx.cond(State.prov_edit_id != "", State.guardar_edit_proveedor, State.agregar_proveedor),
-                                color_scheme="blue",
-                            ),
+                            rx.button(rx.cond(State.prov_edit_id != "", "Guardar cambios", "Guardar"), on_click=rx.cond(State.prov_edit_id != "", State.guardar_edit_proveedor, State.agregar_proveedor), color_scheme="blue"),
                             rx.button("Cancelar", on_click=State.set_mostrar_form_prov(False), color_scheme="gray"),
                             spacing="3",
                         ),
@@ -1060,6 +1139,121 @@ def page_proveedores() -> rx.Component:
     )
 
 
+def tercero_row(terc: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(terc["nombre"]),
+        rx.table.cell(terc["ciudad"]),
+        rx.table.cell(rx.cond(terc["empresa"], terc["empresa"], "-")),
+        rx.table.cell(rx.cond(terc["telefono"], terc["telefono"], "-")),
+        rx.table.cell(rx.cond(terc["email"], terc["email"], "-")),
+        rx.table.cell(
+            rx.hstack(
+                rx.button("📦", size="1", color_scheme="orange",
+                    on_click=State.ver_stock_tercero(terc["id"], terc["nombre"])),
+                rx.button("✏️", size="1", color_scheme="blue",
+                    on_click=State.iniciar_edit_tercero(terc["id"], terc["nombre"], terc["ciudad"], terc["telefono"], terc["email"], terc["empresa"], terc["observaciones"])),
+                rx.button("🗑", size="1", color_scheme="red",
+                    on_click=State.eliminar_tercero(terc["id"])),
+                spacing="2",
+            )
+        ),
+    )
+
+
+def terc_stock_row(item: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(item["prod_codigo"]),
+        rx.table.cell(item["prod_desc"]),
+        rx.table.cell(item["prod_cat"]),
+        rx.table.cell(rx.text(item["cantidad"], color=item["stock_color"], font_weight="700")),
+    )
+
+
+def page_terceros_lista() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Terceros", size="6"),
+            rx.divider(),
+            rx.button("+ Agregar tercero", on_click=State.set_mostrar_form_terc(True), color_scheme="blue"),
+            rx.cond(
+                State.mostrar_form_terc,
+                rx.box(
+                    rx.vstack(
+                        rx.text(rx.cond(State.terc_edit_id != "", "Editar tercero", "Nuevo tercero"), font_weight="600", font_size="14px"),
+                        rx.hstack(
+                            rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.terc_nombre, on_change=State.set_terc_nombre, width="200px"), spacing="1"),
+                            rx.vstack(rx.text("Ciudad", font_size="12px", color="gray"), rx.input(value=State.terc_ciudad, on_change=State.set_terc_ciudad, width="160px"), spacing="1"),
+                            rx.vstack(rx.text("Empresa", font_size="12px", color="gray"), rx.input(value=State.terc_empresa, on_change=State.set_terc_empresa, width="180px"), spacing="1"),
+                            spacing="4", wrap="wrap",
+                        ),
+                        rx.hstack(
+                            rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.terc_telefono, on_change=State.set_terc_telefono, width="160px"), spacing="1"),
+                            rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.terc_email, on_change=State.set_terc_email, width="220px"), spacing="1"),
+                            spacing="4", wrap="wrap",
+                        ),
+                        rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.terc_observaciones, on_change=State.set_terc_observaciones, width="450px", rows="2"), spacing="1"),
+                        rx.cond(State.terc_error != "", rx.callout(State.terc_error, color="red")),
+                        rx.hstack(
+                            rx.button(rx.cond(State.terc_edit_id != "", "Guardar cambios", "Guardar"), on_click=rx.cond(State.terc_edit_id != "", State.guardar_edit_tercero, State.agregar_tercero), color_scheme="blue"),
+                            rx.button("Cancelar", on_click=State.set_mostrar_form_terc(False), color_scheme="gray"),
+                            spacing="3",
+                        ),
+                        spacing="3",
+                    ),
+                    padding="16px", border="1px solid #e2e6ea", border_radius="8px", background="white", width="100%",
+                ),
+            ),
+            rx.cond(State.terc_exito != "", rx.callout(State.terc_exito, color="green")),
+            rx.table.root(
+                rx.table.header(
+                    rx.table.row(
+                        rx.table.column_header_cell("Nombre"),
+                        rx.table.column_header_cell("Ciudad"),
+                        rx.table.column_header_cell("Empresa"),
+                        rx.table.column_header_cell("Teléfono"),
+                        rx.table.column_header_cell("Email"),
+                        rx.table.column_header_cell(""),
+                    )
+                ),
+                rx.table.body(rx.foreach(State.terceros, tercero_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+            on_mount=State.cargar_terceros,
+        )
+    )
+
+
+def page_terceros_stock() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.hstack(
+                rx.button("← Volver", on_click=State.set_pagina("terceros_lista"), color_scheme="gray", size="2"),
+                rx.heading(f"Stock de {State.terc_sel_nombre}", size="6"),
+                spacing="4", align="center",
+            ),
+            rx.divider(),
+            rx.cond(
+                State.terc_stock,
+                rx.table.root(
+                    rx.table.header(
+                        rx.table.row(
+                            rx.table.column_header_cell("Código"),
+                            rx.table.column_header_cell("Descripción"),
+                            rx.table.column_header_cell("Categoría"),
+                            rx.table.column_header_cell("Cantidad"),
+                        )
+                    ),
+                    rx.table.body(rx.foreach(State.terc_stock, terc_stock_row)),
+                    width="100%",
+                ),
+                rx.text("Sin stock registrado para este tercero.", color="gray"),
+            ),
+            spacing="4", width="100%",
+        )
+    )
+
+
 def dashboard_page() -> rx.Component:
     return rx.cond(
         State.pagina == "registro", page_registro(),
@@ -1071,11 +1265,13 @@ def dashboard_page() -> rx.Component:
         rx.cond(State.pagina == "stock_salida", page_stock_salida(),
         rx.cond(State.pagina == "stock_productos", page_stock_productos(),
         rx.cond(State.pagina == "stock_proveedores", page_proveedores(),
+        rx.cond(State.pagina == "terceros_lista", page_terceros_lista(),
+        rx.cond(State.pagina == "terceros_stock", page_terceros_stock(),
         layout(rx.vstack(
             rx.heading("Bienvenido!", size="7"),
             rx.text("Seleccioná un módulo del sidebar.", color="gray"),
             spacing="4",
-        )))))))))))
+        )))))))))))))
 
 
 app = rx.App(theme=rx.theme(accent_color="blue", has_background=True))
