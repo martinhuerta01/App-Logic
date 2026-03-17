@@ -94,8 +94,6 @@ class State(rx.State):
     terc_sel_id: str = ""
     terc_sel_nombre: str = ""
     terc_stock: list[dict] = []
-
-    # Servicios
     servicios: list[dict] = []
     serv_fecha: str = ""
     serv_cliente_tipo: str = ""
@@ -117,6 +115,15 @@ class State(rx.State):
     serv_filtro_anio: str = "2026"
     serv_edit_id: str = ""
 
+    # Reportes
+    rep_mes: str = ""
+    rep_anio: str = "2026"
+    rep_jornadas: list[dict] = []
+    rep_por_estado: list[dict] = []
+    rep_por_tipo: list[dict] = []
+    rep_por_cliente: list[dict] = []
+    rep_servicios_total: int = 0
+
     @rx.var
     def productos_filtrados(self) -> list[dict]:
         if not self.prod_filtro_cat:
@@ -127,12 +134,6 @@ class State(rx.State):
     def responsables_opciones(self) -> list[str]:
         base = ["EQUIPO 1", "EQUIPO 2", "VITACO", "ZARZA", "TALLER INTERNO"]
         return base + self.nombres_terceros
-
-    @rx.var
-    def serv_cliente_final(self) -> str:
-        if self.serv_cliente_tipo == "OTRO":
-            return self.serv_cliente_otro
-        return self.serv_cliente_tipo
 
     def set_serv_cliente_tipo(self, val: str):
         self.serv_cliente_tipo = val
@@ -350,13 +351,19 @@ class State(rx.State):
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(f"{API_URL}/stock/actual/", params=params)
         raw = r.json()
+        result = []
         for item in raw:
-            item["prod_codigo"] = item.get("productos", {}).get("codigo", "")
-            item["prod_desc"] = item.get("productos", {}).get("descripcion", "")
-            item["prod_cat"] = item.get("productos", {}).get("categoria", "")
-            item["ubic_nombre"] = item.get("ubicaciones", {}).get("nombre", "")
-            item["stock_color"] = "red" if item["cantidad"] <= 0 else "green" if item["cantidad"] > 5 else "orange"
-        self.stock_actual = raw
+            prod = item.get("productos") or {}
+            ubic = item.get("ubicaciones") or {}
+            item["prod_codigo"] = prod.get("codigo", "")
+            item["prod_desc"] = prod.get("descripcion", "")
+            item["prod_cat"] = prod.get("categoria", "")
+            item["ubic_nombre"] = ubic.get("nombre", "")
+            if item["prod_codigo"] and item["ubic_nombre"]:
+                cantidad = item.get("cantidad", 0)
+                item["stock_color"] = "red" if cantidad <= 0 else "green" if cantidad > 5 else "orange"
+                result.append(item)
+        self.stock_actual = result
 
     async def registrar_entrada(self):
         if not self.entrada_producto or not self.entrada_fecha:
@@ -647,11 +654,8 @@ class State(rx.State):
                 raw = []
             for s in raw:
                 s["estado_color"] = {
-                    "PENDIENTE": "orange",
-                    "CONFIRMADO": "blue",
-                    "REALIZADO": "green",
-                    "SUSPENDIDO": "red",
-                    "REPROGRAMADO": "purple",
+                    "PENDIENTE": "orange", "CONFIRMADO": "blue", "REALIZADO": "green",
+                    "SUSPENDIDO": "red", "REPROGRAMADO": "purple",
                 }.get(s.get("estado", ""), "gray")
             self.servicios = raw
         except Exception:
@@ -713,6 +717,27 @@ class State(rx.State):
         self.serv_estado = estado
         self.serv_observaciones = obs or ""
         self.pagina = "serv_cargar"
+
+    async def cargar_reporte(self):
+        params = {}
+        if self.rep_mes:
+            params["mes"] = self.rep_mes
+        if self.rep_anio:
+            params["anio"] = self.rep_anio
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                r = await client.get(f"{API_URL}/jornadas/reporte_cruzado/", params=params)
+            data = r.json()
+            self.rep_jornadas = data.get("jornadas", [])
+            self.rep_servicios_total = data.get("servicios_total", 0)
+            self.rep_por_estado = data.get("por_estado", [])
+            self.rep_por_tipo = data.get("por_tipo", [])
+            self.rep_por_cliente = data.get("por_cliente", [])
+        except Exception:
+            self.rep_jornadas = []
+            self.rep_por_estado = []
+            self.rep_por_tipo = []
+            self.rep_por_cliente = []
 
 
 MODULOS = [
@@ -1135,7 +1160,7 @@ def page_stock_productos() -> rx.Component:
             rx.divider(),
             rx.hstack(
                 rx.button("+ Agregar producto", on_click=State.set_mostrar_form_prod(True), color_scheme="blue"),
-                rx.vstack(rx.text("Filtrar por categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], placeholder="Todas", value=State.prod_filtro_cat, on_change=State.set_prod_filtro_cat, width="180px"), spacing="1"),
+                rx.vstack(rx.text("Filtrar por categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS", "HERRAMIENTAS"], placeholder="Todas", value=State.prod_filtro_cat, on_change=State.set_prod_filtro_cat, width="180px"), spacing="1"),
                 spacing="4", align="end",
             ),
             rx.cond(State.mostrar_form_prod,
@@ -1143,7 +1168,7 @@ def page_stock_productos() -> rx.Component:
                     rx.hstack(
                         rx.vstack(rx.text("Código", font_size="12px", color="gray"), rx.input(value=State.prod_codigo, on_change=State.set_prod_codigo, width="120px"), spacing="1"),
                         rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_descripcion, on_change=State.set_prod_descripcion, width="300px"), spacing="1"),
-                        rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_categoria, on_change=State.set_prod_categoria, width="160px"), spacing="1"),
+                        rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS", "HERRAMIENTAS"], value=State.prod_categoria, on_change=State.set_prod_categoria, width="160px"), spacing="1"),
                         spacing="4",
                     ),
                     rx.cond(State.prod_error != "", rx.callout(State.prod_error, color="red")),
@@ -1156,7 +1181,7 @@ def page_stock_productos() -> rx.Component:
                     rx.text("Editando producto", font_weight="600"),
                     rx.hstack(
                         rx.vstack(rx.text("Descripción", font_size="12px", color="gray"), rx.input(value=State.prod_edit_desc, on_change=State.set_prod_edit_desc, width="300px"), spacing="1"),
-                        rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS"], value=State.prod_edit_cat, on_change=State.set_prod_edit_cat, width="160px"), spacing="1"),
+                        rx.vstack(rx.text("Categoría", font_size="12px", color="gray"), rx.select(["DISPOSITIVOS", "CABLES", "ACCESORIOS", "INSUMOS", "HERRAMIENTAS"], value=State.prod_edit_cat, on_change=State.set_prod_edit_cat, width="160px"), spacing="1"),
                         spacing="4",
                     ),
                     rx.hstack(rx.button("Guardar cambios", on_click=State.guardar_edit_producto, color_scheme="blue"), rx.button("Cancelar", on_click=State.set_prod_edit_id(""), color_scheme="gray"), spacing="3"),
@@ -1352,16 +1377,8 @@ def page_serv_cargar() -> rx.Component:
             rx.divider(),
             rx.hstack(
                 rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.serv_fecha, on_change=State.set_serv_fecha, width="160px"), spacing="1"),
-                rx.vstack(
-                    rx.text("Cliente", font_size="12px", color="gray"),
-                    rx.select(["LA SERENISIMA", "OTRO"], placeholder="Seleccionar", value=State.serv_cliente_tipo, on_change=State.set_serv_cliente_tipo, width="200px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Tipo de servicio", font_size="12px", color="gray"),
-                    rx.select(["INSTALACION", "DESINSTALACION", "REVISION"], value=State.serv_tipo, on_change=State.set_serv_tipo, width="180px"),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Cliente", font_size="12px", color="gray"), rx.select(["LA SERENISIMA", "OTRO"], placeholder="Seleccionar", value=State.serv_cliente_tipo, on_change=State.set_serv_cliente_tipo, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Tipo de servicio", font_size="12px", color="gray"), rx.select(["INSTALACION", "DESINSTALACION", "REVISION"], value=State.serv_tipo, on_change=State.set_serv_tipo, width="180px"), spacing="1"),
                 spacing="4", wrap="wrap",
             ),
             rx.cond(
@@ -1375,16 +1392,8 @@ def page_serv_cargar() -> rx.Component:
             ),
             rx.hstack(
                 rx.vstack(rx.text("Patente / Dominio", font_size="12px", color="gray"), rx.input(value=State.serv_patente, on_change=State.set_serv_patente, width="160px"), spacing="1"),
-                rx.vstack(
-                    rx.text("Responsable", font_size="12px", color="gray"),
-                    rx.select(State.responsables_opciones, placeholder="Seleccionar", value=State.serv_responsable_tipo, on_change=State.set_serv_responsable_tipo, width="220px"),
-                    spacing="1",
-                ),
-                rx.vstack(
-                    rx.text("Estado", font_size="12px", color="gray"),
-                    rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO", "SUSPENDIDO", "REPROGRAMADO"], value=State.serv_estado, on_change=State.set_serv_estado, width="180px"),
-                    spacing="1",
-                ),
+                rx.vstack(rx.text("Responsable", font_size="12px", color="gray"), rx.select(State.responsables_opciones, placeholder="Seleccionar", value=State.serv_responsable_tipo, on_change=State.set_serv_responsable_tipo, width="220px"), spacing="1"),
+                rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO", "SUSPENDIDO", "REPROGRAMADO"], value=State.serv_estado, on_change=State.set_serv_estado, width="180px"), spacing="1"),
                 spacing="4", wrap="wrap",
             ),
             rx.cond(
@@ -1437,6 +1446,130 @@ def page_serv_lista() -> rx.Component:
     )
 
 
+def rep_jornada_row(r: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(r["nombre"]),
+        rx.table.cell(r["dias_trabajados"]),
+        rx.table.cell(f"{r['horas_total']}h"),
+        rx.table.cell(r["instalaciones"]),
+        rx.table.cell(r["desinstalaciones"]),
+        rx.table.cell(r["revisiones"]),
+    )
+
+
+def rep_estado_row(r: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(r["estado"]),
+        rx.table.cell(r["cantidad"]),
+    )
+
+
+def rep_tipo_row(r: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(r["tipo"]),
+        rx.table.cell(r["cantidad"]),
+    )
+
+
+def rep_cliente_row(r: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(r["cliente"]),
+        rx.table.cell(r["cantidad"]),
+    )
+
+
+def page_reporte_cruzado() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Reporte Horarios vs Servicios", size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.rep_mes, on_change=State.set_rep_mes, width="130px"), spacing="1"),
+                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.rep_anio, on_change=State.set_rep_anio, width="100px"), spacing="1"),
+                rx.button("Generar reporte", on_click=State.cargar_reporte, color_scheme="red"),
+                spacing="4", align="end",
+            ),
+
+            # Resumen técnicos
+            rx.text("Actividad por técnico", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
+            rx.table.root(
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Técnico"),
+                    rx.table.column_header_cell("Días trabajados"),
+                    rx.table.column_header_cell("Horas totales"),
+                    rx.table.column_header_cell("Instalaciones"),
+                    rx.table.column_header_cell("Desinstalaciones"),
+                    rx.table.column_header_cell("Revisiones"),
+                )),
+                rx.table.body(rx.foreach(State.rep_jornadas, rep_jornada_row)),
+                width="100%",
+            ),
+
+            # Servicios resumen
+            rx.hstack(
+                rx.box(
+                    rx.vstack(
+                        rx.text("Total servicios del período", font_size="13px", color="gray"),
+                        rx.text(State.rep_servicios_total, font_size="32px", font_weight="700", color="#1e3a8a"),
+                        spacing="1", align="center",
+                    ),
+                    padding="20px", border="1px solid #e2e6ea", border_radius="12px", background="white", width="180px",
+                ),
+                rx.vstack(
+                    rx.text("Por estado", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.table.root(
+                        rx.table.header(rx.table.row(rx.table.column_header_cell("Estado"), rx.table.column_header_cell("Cant."))),
+                        rx.table.body(rx.foreach(State.rep_por_estado, rep_estado_row)),
+                    ),
+                    spacing="2",
+                ),
+                rx.vstack(
+                    rx.text("Por tipo", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.table.root(
+                        rx.table.header(rx.table.row(rx.table.column_header_cell("Tipo"), rx.table.column_header_cell("Cant."))),
+                        rx.table.body(rx.foreach(State.rep_por_tipo, rep_tipo_row)),
+                    ),
+                    spacing="2",
+                ),
+                rx.vstack(
+                    rx.text("Por cliente", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.table.root(
+                        rx.table.header(rx.table.row(rx.table.column_header_cell("Cliente"), rx.table.column_header_cell("Cant."))),
+                        rx.table.body(rx.foreach(State.rep_por_cliente, rep_cliente_row)),
+                    ),
+                    spacing="2",
+                ),
+                spacing="6", align="start", wrap="wrap", margin_top="8px",
+            ),
+
+            # Gráficos
+            rx.text("Servicios por tipo", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="16px"),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(data_key="cantidad", fill="#be123c", name="Servicios"),
+                rx.recharts.x_axis(data_key="tipo"),
+                rx.recharts.y_axis(),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                rx.recharts.graphing_tooltip(),
+                data=State.rep_por_tipo,
+                width="100%", height=250,
+            ),
+
+            rx.text("Servicios por cliente", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(data_key="cantidad", fill="#7c3aed", name="Servicios"),
+                rx.recharts.x_axis(data_key="cliente"),
+                rx.recharts.y_axis(),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                rx.recharts.graphing_tooltip(),
+                data=State.rep_por_cliente,
+                width="100%", height=250,
+            ),
+
+            spacing="4", width="100%",
+        )
+    )
+
+
 def dashboard_page() -> rx.Component:
     return rx.cond(
         State.pagina == "registro", page_registro(),
@@ -1452,11 +1585,12 @@ def dashboard_page() -> rx.Component:
         rx.cond(State.pagina == "terceros_stock", page_terceros_stock(),
         rx.cond(State.pagina == "serv_cargar", page_serv_cargar(),
         rx.cond(State.pagina == "serv_lista", page_serv_lista(),
+        rx.cond(State.pagina == "reporte_cruzado", page_reporte_cruzado(),
         layout(rx.vstack(
             rx.heading("Bienvenido!", size="7"),
             rx.text("Seleccioná un módulo del sidebar.", color="gray"),
             spacing="4",
-        )))))))))))))))
+        ))))))))))))))))
 
 
 app = rx.App(theme=rx.theme(accent_color="blue", has_background=True))
