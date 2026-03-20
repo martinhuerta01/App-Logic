@@ -1,15 +1,20 @@
 import reflex as rx
 import httpx
+import os
 
-API_URL = "http://127.0.0.1:8001"
+API_URL = os.environ.get("API_URL", "http://127.0.0.1:8001")
 
 class State(rx.State):
     usuario: str = ""
+    login_input: str = ""
     password: str = ""
     token: str = ""
     error: str = ""
     cargando: bool = False
     pagina: str = "registro"
+    confirm_id: str = ""
+    confirm_tipo: str = ""
+    mostrar_confirm: bool = False
     empleados: list[dict] = []
     nombres_empleados: list[str] = []
     empleado_sel: str = ""
@@ -125,6 +130,26 @@ class State(rx.State):
     rep_servicios_total: int = 0
 
     @rx.var
+    def rep_total_dias(self) -> int:
+        return sum(j.get("dias_trabajados", 0) for j in self.rep_jornadas)
+
+    @rx.var
+    def rep_total_horas(self) -> float:
+        return round(sum(j.get("horas_total", 0.0) for j in self.rep_jornadas), 1)
+
+    @rx.var
+    def rep_total_instalaciones(self) -> int:
+        return sum(j.get("instalaciones", 0) for j in self.rep_jornadas)
+
+    @rx.var
+    def rep_total_desinstalaciones(self) -> int:
+        return sum(j.get("desinstalaciones", 0) for j in self.rep_jornadas)
+
+    @rx.var
+    def rep_total_revisiones(self) -> int:
+        return sum(j.get("revisiones", 0) for j in self.rep_jornadas)
+
+    @rx.var
     def productos_filtrados(self) -> list[dict]:
         if not self.prod_filtro_cat:
             return self.productos
@@ -152,12 +177,14 @@ class State(rx.State):
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     f"{API_URL}/auth/login",
-                    json={"usuario": self.usuario, "password": self.password}
+                    json={"usuario": self.login_input, "password": self.password}
                 )
             if response.status_code == 200:
                 data = response.json()
                 self.token = data["access_token"]
                 self.usuario = data["usuario"]
+                self.login_input = ""
+                self.password = ""
                 yield rx.redirect("/dashboard")
             else:
                 self.error = "Usuario o contraseña incorrectos"
@@ -718,6 +745,39 @@ class State(rx.State):
         self.serv_observaciones = obs or ""
         self.pagina = "serv_cargar"
 
+    def iniciar_confirm(self, tipo: str, id: str):
+        self.confirm_tipo = tipo
+        self.confirm_id = id
+        self.mostrar_confirm = True
+
+    def cancelar_confirm(self):
+        self.mostrar_confirm = False
+        self.confirm_id = ""
+        self.confirm_tipo = ""
+
+    async def confirmar_eliminar(self):
+        tipo = self.confirm_tipo
+        id_ = self.confirm_id
+        self.mostrar_confirm = False
+        self.confirm_id = ""
+        self.confirm_tipo = ""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if tipo == "jornada":
+                await client.delete(f"{API_URL}/jornadas/{id_}")
+                await self.cargar_historial()
+            elif tipo == "producto":
+                await client.delete(f"{API_URL}/stock/productos/{id_}")
+                await self.cargar_productos()
+            elif tipo == "proveedor":
+                await client.delete(f"{API_URL}/proveedores/{id_}")
+                await self.cargar_proveedores()
+            elif tipo == "tercero":
+                await client.delete(f"{API_URL}/terceros/{id_}")
+                await self.cargar_terceros()
+            elif tipo == "servicio":
+                await client.delete(f"{API_URL}/servicios/{id_}")
+                await self.cargar_servicios()
+
     async def cargar_reporte(self):
         params = {}
         if self.rep_mes:
@@ -815,6 +875,21 @@ def sidebar() -> rx.Component:
     )
 
 
+def confirm_dialog() -> rx.Component:
+    return rx.alert_dialog.root(
+        rx.alert_dialog.content(
+            rx.alert_dialog.title("Confirmar eliminación"),
+            rx.alert_dialog.description("¿Seguro que querés eliminar este registro? Esta acción no se puede deshacer."),
+            rx.flex(
+                rx.button("Cancelar", on_click=State.cancelar_confirm, color_scheme="gray", variant="soft"),
+                rx.button("Eliminar", on_click=State.confirmar_eliminar, color_scheme="red"),
+                spacing="3", justify="end", margin_top="16px",
+            ),
+        ),
+        open=State.mostrar_confirm,
+    )
+
+
 def layout(content: rx.Component) -> rx.Component:
     return rx.hstack(
         sidebar(),
@@ -826,6 +901,7 @@ def layout(content: rx.Component) -> rx.Component:
             min_height="100vh",
             background="#f1f3f6",
         ),
+        confirm_dialog(),
         spacing="0", width="100%",
     )
 
@@ -835,7 +911,7 @@ def login_page() -> rx.Component:
         rx.vstack(
             rx.heading("⚙️ App-Logic", size="8", color="blue"),
             rx.text("Ingresá para continuar", color="gray"),
-            rx.input(placeholder="Usuario", value=State.usuario, on_change=State.set_usuario),
+            rx.input(placeholder="Usuario", value=State.login_input, on_change=State.set_login_input),
             rx.input(placeholder="Contraseña", type="password", value=State.password, on_change=State.set_password),
             rx.cond(State.error != "", rx.text(State.error, color="red")),
             rx.button(
@@ -912,7 +988,7 @@ def jornada_row(jornada: dict) -> rx.Component:
         rx.table.cell(jornada["instalaciones"]),
         rx.table.cell(jornada["desinstalaciones"]),
         rx.table.cell(jornada["revisiones"]),
-        rx.table.cell(rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_jornada(jornada["id"]))),
+        rx.table.cell(rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("jornada", jornada["id"]))),
     )
 
 
@@ -1147,7 +1223,7 @@ def producto_row(prod: dict) -> rx.Component:
         rx.table.cell(prod["categoria"]),
         rx.table.cell(rx.hstack(
             rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_producto(prod["id"], prod["descripcion"], prod["categoria"])),
-            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_producto(prod["id"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("producto", prod["id"])),
             spacing="2",
         )),
     )
@@ -1209,7 +1285,7 @@ def proveedor_row(prov: dict) -> rx.Component:
         rx.table.cell(rx.cond(prov["productos_que_vende"], prov["productos_que_vende"], "-")),
         rx.table.cell(rx.hstack(
             rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_proveedor(prov["id"], prov["nombre"], prov["responsable"], prov["telefono"], prov["email"], prov["direccion"], prov["productos_que_vende"], prov["observaciones"])),
-            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_proveedor(prov["id"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("proveedor", prov["id"])),
             spacing="2",
         )),
     )
@@ -1268,7 +1344,7 @@ def tercero_row(terc: dict) -> rx.Component:
         rx.table.cell(rx.hstack(
             rx.button("📦", size="1", color_scheme="orange", on_click=State.ver_stock_tercero(terc["id"], terc["nombre"])),
             rx.button("✏️", size="1", color_scheme="blue", on_click=State.iniciar_edit_tercero(terc["id"], terc["nombre"], terc["ciudad"], terc["telefono"], terc["email"], terc["empresa"], terc["observaciones"])),
-            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_tercero(terc["id"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("tercero", terc["id"])),
             spacing="2",
         )),
     )
@@ -1364,7 +1440,7 @@ def servicio_row(serv: dict) -> rx.Component:
                     serv["tipo_servicio"], serv["tipo_unidad"], serv["alcance"],
                     serv["patente"], serv["responsable"], serv["estado"], serv["observaciones"]
                 )),
-            rx.button("🗑", size="1", color_scheme="red", on_click=State.eliminar_servicio(serv["id"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("servicio", serv["id"])),
             spacing="2",
         )),
     )
@@ -1505,18 +1581,60 @@ def page_reporte_cruzado() -> rx.Component:
                 width="100%",
             ),
 
-            # Servicios resumen
+            # KPIs globales
+            rx.text("Resumen del período", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
             rx.hstack(
-                rx.box(
-                    rx.vstack(
-                        rx.text("Total servicios del período", font_size="13px", color="gray"),
-                        rx.text(State.rep_servicios_total, font_size="32px", font_weight="700", color="#1e3a8a"),
-                        spacing="1", align="center",
-                    ),
-                    padding="20px", border="1px solid #e2e6ea", border_radius="12px", background="white", width="180px",
-                ),
+                rx.box(rx.vstack(rx.text("Días trabajados", font_size="12px", color="gray"), rx.text(State.rep_total_dias, font_size="28px", font_weight="700", color="#1e3a8a"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                rx.box(rx.vstack(rx.text("Horas totales", font_size="12px", color="gray"), rx.text(State.rep_total_horas, font_size="28px", font_weight="700", color="#0f766e"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                rx.box(rx.vstack(rx.text("Instalaciones", font_size="12px", color="gray"), rx.text(State.rep_total_instalaciones, font_size="28px", font_weight="700", color="#b45309"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                rx.box(rx.vstack(rx.text("Desinstalaciones", font_size="12px", color="gray"), rx.text(State.rep_total_desinstalaciones, font_size="28px", font_weight="700", color="#7c3aed"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                rx.box(rx.vstack(rx.text("Revisiones", font_size="12px", color="gray"), rx.text(State.rep_total_revisiones, font_size="28px", font_weight="700", color="#be123c"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                rx.box(rx.vstack(rx.text("Total servicios", font_size="12px", color="gray"), rx.text(State.rep_servicios_total, font_size="28px", font_weight="700", color="#374151"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                spacing="4", wrap="wrap",
+            ),
+
+            # Gráficos por técnico
+            rx.text("Días trabajados por técnico", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="16px"),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(data_key="dias_trabajados", fill="#1e3a8a", name="Días"),
+                rx.recharts.x_axis(data_key="nombre"),
+                rx.recharts.y_axis(),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                rx.recharts.graphing_tooltip(),
+                data=State.rep_jornadas,
+                width="100%", height=240,
+            ),
+
+            rx.text("Horas totales por técnico", font_size="14px", font_weight="700", color="#0f766e", margin_top="8px"),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(data_key="horas_total", fill="#0f766e", name="Horas"),
+                rx.recharts.x_axis(data_key="nombre"),
+                rx.recharts.y_axis(),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                rx.recharts.graphing_tooltip(),
+                data=State.rep_jornadas,
+                width="100%", height=240,
+            ),
+
+            rx.text("Productividad por técnico (instalaciones / desinstalaciones / revisiones)", font_size="14px", font_weight="700", color="#b45309", margin_top="8px"),
+            rx.recharts.bar_chart(
+                rx.recharts.bar(data_key="instalaciones", fill="#b45309", name="Instalaciones"),
+                rx.recharts.bar(data_key="desinstalaciones", fill="#7c3aed", name="Desinstalaciones"),
+                rx.recharts.bar(data_key="revisiones", fill="#be123c", name="Revisiones"),
+                rx.recharts.x_axis(data_key="nombre"),
+                rx.recharts.y_axis(),
+                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
+                rx.recharts.graphing_tooltip(),
+                rx.recharts.legend(),
+                data=State.rep_jornadas,
+                width="100%", height=260,
+            ),
+
+            # Servicios resumen
+            rx.text("Servicios del período", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
+            rx.hstack(
                 rx.vstack(
-                    rx.text("Por estado", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.text("Por estado", font_size="13px", font_weight="700", color="#1e3a8a"),
                     rx.table.root(
                         rx.table.header(rx.table.row(rx.table.column_header_cell("Estado"), rx.table.column_header_cell("Cant."))),
                         rx.table.body(rx.foreach(State.rep_por_estado, rep_estado_row)),
@@ -1524,7 +1642,7 @@ def page_reporte_cruzado() -> rx.Component:
                     spacing="2",
                 ),
                 rx.vstack(
-                    rx.text("Por tipo", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.text("Por tipo", font_size="13px", font_weight="700", color="#1e3a8a"),
                     rx.table.root(
                         rx.table.header(rx.table.row(rx.table.column_header_cell("Tipo"), rx.table.column_header_cell("Cant."))),
                         rx.table.body(rx.foreach(State.rep_por_tipo, rep_tipo_row)),
@@ -1532,18 +1650,17 @@ def page_reporte_cruzado() -> rx.Component:
                     spacing="2",
                 ),
                 rx.vstack(
-                    rx.text("Por cliente", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.text("Por cliente", font_size="13px", font_weight="700", color="#1e3a8a"),
                     rx.table.root(
                         rx.table.header(rx.table.row(rx.table.column_header_cell("Cliente"), rx.table.column_header_cell("Cant."))),
                         rx.table.body(rx.foreach(State.rep_por_cliente, rep_cliente_row)),
                     ),
                     spacing="2",
                 ),
-                spacing="6", align="start", wrap="wrap", margin_top="8px",
+                spacing="8", align="start", wrap="wrap", margin_top="4px",
             ),
 
-            # Gráficos
-            rx.text("Servicios por tipo", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="16px"),
+            rx.text("Servicios por tipo", font_size="14px", font_weight="700", color="#be123c", margin_top="16px"),
             rx.recharts.bar_chart(
                 rx.recharts.bar(data_key="cantidad", fill="#be123c", name="Servicios"),
                 rx.recharts.x_axis(data_key="tipo"),
@@ -1551,10 +1668,10 @@ def page_reporte_cruzado() -> rx.Component:
                 rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
                 rx.recharts.graphing_tooltip(),
                 data=State.rep_por_tipo,
-                width="100%", height=250,
+                width="100%", height=230,
             ),
 
-            rx.text("Servicios por cliente", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
+            rx.text("Servicios por cliente", font_size="14px", font_weight="700", color="#7c3aed", margin_top="8px"),
             rx.recharts.bar_chart(
                 rx.recharts.bar(data_key="cantidad", fill="#7c3aed", name="Servicios"),
                 rx.recharts.x_axis(data_key="cliente"),
@@ -1562,7 +1679,7 @@ def page_reporte_cruzado() -> rx.Component:
                 rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
                 rx.recharts.graphing_tooltip(),
                 data=State.rep_por_cliente,
-                width="100%", height=250,
+                width="100%", height=230,
             ),
 
             spacing="4", width="100%",
