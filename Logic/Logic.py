@@ -112,6 +112,15 @@ class State(rx.State):
     vista_servicios_equipo2: list[dict] = []
     vista_mov_equipo1: dict = {}
     vista_mov_equipo2: dict = {}
+    vista_edit_mov1_salida: str = ""
+    vista_edit_mov1_llegada: str = ""
+    vista_edit_mov1_inicio: str = ""
+    vista_edit_mov1_fin: str = ""
+    vista_edit_mov2_salida: str = ""
+    vista_edit_mov2_llegada: str = ""
+    vista_edit_mov2_inicio: str = ""
+    vista_edit_mov2_fin: str = ""
+    vista_exito: str = ""
 
     # Historial servicios
     hist_servicios: list[dict] = []
@@ -120,7 +129,16 @@ class State(rx.State):
     hist_filtro_anio: str = "2026"
     hist_filtro_equipo: str = ""
     hist_edit_id: str = ""
+    hist_edit_fecha: str = ""
+    hist_edit_hora: str = ""
+    hist_edit_cliente: str = ""
+    hist_edit_tipo: str = ""
+    hist_edit_dispositivo: str = ""
+    hist_edit_patente: str = ""
     hist_edit_estado: str = ""
+    hist_edit_obs: str = ""
+    hist_edit_equipo_id: str = ""
+    mostrar_edit_hist: bool = False
 
     # Directorio
     dir_tipo: str = "interno"
@@ -151,6 +169,7 @@ class State(rx.State):
     stats_cli_mes: str = ""
     stats_cli_anio: str = "2026"
     stats_cli_cliente_id: str = ""
+    stats_cli_cliente_ref: str = ""
     stats_cli_resumen: dict = {}
     stats_cli_servicios: list[dict] = []
 
@@ -612,6 +631,8 @@ class State(rx.State):
             r = await client.get(f"{API_URL}/servicios/", params={"fecha": self.vista_fecha})
             r_mov = await client.get(f"{API_URL}/movimientos-camioneta/")
         servicios = r.json() if isinstance(r.json(), list) else []
+        for s in servicios:
+            s["estado_color"] = {"PENDIENTE": "orange", "CONFIRMADO": "blue", "REALIZADO": "green"}.get(s.get("estado", ""), "gray")
         eq1 = next((e for e in self.equipos if "1" in e["nombre"]), None)
         eq2 = next((e for e in self.equipos if "2" in e["nombre"]), None)
         self.vista_servicios_equipo1 = [s for s in servicios if s.get("equipo_id") == (eq1["id"] if eq1 else "")]
@@ -625,6 +646,36 @@ class State(rx.State):
                     self.vista_mov_equipo1 = mov
                 elif eq2 and mov.get("equipo_id") == eq2["id"]:
                     self.vista_mov_equipo2 = mov
+        # Poblar campos editables de movimientos
+        m1 = self.vista_mov_equipo1
+        self.vista_edit_mov1_salida = m1.get("hora_salida", "") or "" if m1 else ""
+        self.vista_edit_mov1_llegada = m1.get("hora_llegada", "") or "" if m1 else ""
+        self.vista_edit_mov1_inicio = m1.get("punto_inicio", "") or "" if m1 else ""
+        self.vista_edit_mov1_fin = m1.get("punto_fin", "") or "" if m1 else ""
+        m2 = self.vista_mov_equipo2
+        self.vista_edit_mov2_salida = m2.get("hora_salida", "") or "" if m2 else ""
+        self.vista_edit_mov2_llegada = m2.get("hora_llegada", "") or "" if m2 else ""
+        self.vista_edit_mov2_inicio = m2.get("punto_inicio", "") or "" if m2 else ""
+        self.vista_edit_mov2_fin = m2.get("punto_fin", "") or "" if m2 else ""
+
+    async def guardar_movimiento_vista(self, equipo_num: str):
+        if equipo_num == "1":
+            mov = self.vista_mov_equipo1
+            payload = {"hora_salida": self.vista_edit_mov1_salida or None, "hora_llegada": self.vista_edit_mov1_llegada or None, "punto_inicio": self.vista_edit_mov1_inicio or None, "punto_fin": self.vista_edit_mov1_fin or None}
+        else:
+            mov = self.vista_mov_equipo2
+            payload = {"hora_salida": self.vista_edit_mov2_salida or None, "hora_llegada": self.vista_edit_mov2_llegada or None, "punto_inicio": self.vista_edit_mov2_inicio or None, "punto_fin": self.vista_edit_mov2_fin or None}
+        if not mov or not mov.get("id"):
+            return
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.put(f"{API_URL}/movimientos-camioneta/{mov['id']}", json=payload)
+        self.vista_exito = f"Datos de camioneta Equipo {equipo_num} guardados"
+        await self.cargar_vista_dia()
+
+    async def actualizar_estado_vista(self, serv_id: str, nuevo_estado: str):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.put(f"{API_URL}/servicios/{serv_id}", json={"estado": nuevo_estado})
+        await self.cargar_vista_dia()
 
     async def cargar_historial_svc(self):
         params = {}
@@ -641,11 +692,58 @@ class State(rx.State):
             raw = []
         for s in raw:
             s["estado_color"] = {"PENDIENTE": "orange", "CONFIRMADO": "blue", "REALIZADO": "green"}.get(s.get("estado", ""), "gray")
+            eq = next((e for e in self.equipos if e["id"] == s.get("equipo_id")), None)
+            s["equipo_nombre"] = eq["nombre"] if eq else "-"
         self.hist_servicios = raw
 
     async def actualizar_estado_servicio(self, serv_id: str, nuevo_estado: str):
         async with httpx.AsyncClient(timeout=30.0) as client:
             await client.put(f"{API_URL}/servicios/{serv_id}", json={"estado": nuevo_estado})
+        await self.cargar_historial_svc()
+
+    hist_edit_equipo_nombre: str = ""
+
+    def abrir_edit_hist(self, serv: dict):
+        self.hist_edit_id = serv.get("id", "")
+        self.hist_edit_fecha = serv.get("fecha", "")
+        self.hist_edit_hora = serv.get("hora_programada", "") or ""
+        self.hist_edit_cliente = serv.get("cliente", "")
+        self.hist_edit_tipo = serv.get("tipo_servicio", "INSTALACION")
+        self.hist_edit_dispositivo = serv.get("dispositivo", "") or ""
+        self.hist_edit_patente = serv.get("patente", "") or ""
+        self.hist_edit_estado = serv.get("estado", "PENDIENTE")
+        self.hist_edit_obs = serv.get("observaciones", "") or ""
+        self.hist_edit_equipo_id = serv.get("equipo_id", "") or ""
+        eq = next((e for e in self.equipos if e["id"] == self.hist_edit_equipo_id), None)
+        self.hist_edit_equipo_nombre = eq["nombre"] if eq else ""
+        self.mostrar_edit_hist = True
+
+    def set_hist_edit_equipo_sel(self, nombre: str):
+        self.hist_edit_equipo_nombre = nombre
+        eq = next((e for e in self.equipos if e["nombre"] == nombre), None)
+        if eq:
+            self.hist_edit_equipo_id = eq["id"]
+
+    def cerrar_edit_hist(self):
+        self.mostrar_edit_hist = False
+        self.hist_edit_id = ""
+
+    async def guardar_edit_hist(self):
+        payload = {
+            "fecha": self.hist_edit_fecha,
+            "hora_programada": self.hist_edit_hora or None,
+            "cliente": self.hist_edit_cliente,
+            "tipo_servicio": self.hist_edit_tipo,
+            "dispositivo": self.hist_edit_dispositivo or None,
+            "patente": self.hist_edit_patente or None,
+            "estado": self.hist_edit_estado,
+            "observaciones": self.hist_edit_obs or None,
+            "equipo_id": self.hist_edit_equipo_id or None,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.put(f"{API_URL}/servicios/{self.hist_edit_id}", json=payload)
+        self.mostrar_edit_hist = False
+        self.hist_edit_id = ""
         await self.cargar_historial_svc()
 
     async def eliminar_servicio_hist(self, serv_id: str):
@@ -767,18 +865,33 @@ class State(rx.State):
             t_mins = t.get("minutos_trabajados", 0)
             t["horas_str"] = f"{t_mins // 60}h {t_mins % 60:02d}m"
 
+    def set_stats_cli_cliente_nombre(self, nombre: str):
+        self.stats_cli_cliente_id = nombre
+        # Buscar el id del tercero por nombre
+        cli = next((c for c in self.dir_clientes_list if c["nombre"] == nombre), None)
+        if cli:
+            self.stats_cli_cliente_ref = cli["id"]
+        else:
+            self.stats_cli_cliente_ref = ""
+
     async def cargar_stats_clientes(self):
         params = {}
         if self.stats_cli_mes:
             params["mes"] = self.stats_cli_mes
         if self.stats_cli_anio:
             params["anio"] = self.stats_cli_anio
-        if self.stats_cli_cliente_id:
-            params["cliente_id"] = self.stats_cli_cliente_id
+        if hasattr(self, 'stats_cli_cliente_ref') and self.stats_cli_cliente_ref:
+            params["cliente_id"] = self.stats_cli_cliente_ref
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(f"{API_URL}/estadisticas/servicios-cliente", params=params)
-        data = r.json()
-        self.stats_cli_resumen = data.get("resumen", {})
+        data = r.json() if isinstance(r.json(), dict) else {}
+        resumen = data.get("resumen", {})
+        self.stats_cli_resumen = {
+            "total": resumen.get("total", 0),
+            "instalaciones": resumen.get("INSTALACION", 0),
+            "revisiones": resumen.get("REVISION", 0),
+            "desinstalaciones": resumen.get("DESINSTALACION", 0),
+        }
         raw = data.get("servicios", [])
         for s in raw:
             s["estado_color"] = {"PENDIENTE": "orange", "CONFIRMADO": "blue", "REALIZADO": "green"}.get(s.get("estado", ""), "gray")
@@ -1409,15 +1522,43 @@ def vista_servicio_row(s: dict) -> rx.Component:
         rx.table.cell(s["tipo_servicio"]),
         rx.table.cell(rx.cond(s["dispositivo"], s["dispositivo"], "-")),
         rx.table.cell(rx.cond(s["patente"], s["patente"], "-")),
-        rx.table.cell(rx.text(s["estado"], color=s["estado_color"], font_weight="600")),
+        rx.table.cell(
+            rx.select(
+                ["PENDIENTE", "CONFIRMADO", "REALIZADO"],
+                value=s["estado"],
+                on_change=lambda v: State.actualizar_estado_vista(s["id"], v),
+                width="140px", size="1",
+            )
+        ),
+    )
+
+
+def vista_mov_editable(equipo_num: str, color: str, bg: str, salida_val, llegada_val, inicio_val, fin_val, set_salida, set_llegada, set_inicio, set_fin) -> rx.Component:
+    return rx.box(
+        rx.vstack(
+            rx.hstack(
+                rx.vstack(rx.text("Hora salida", font_size="11px", color="gray"), rx.input(type="time", value=salida_val, on_change=set_salida, width="130px", size="1"), spacing="0"),
+                rx.vstack(rx.text("Hora llegada", font_size="11px", color="gray"), rx.input(type="time", value=llegada_val, on_change=set_llegada, width="130px", size="1"), spacing="0"),
+                spacing="3",
+            ),
+            rx.hstack(
+                rx.vstack(rx.text("Punto inicio", font_size="11px", color="gray"), rx.input(value=inicio_val, on_change=set_inicio, width="130px", size="1", placeholder="Inicio"), spacing="0"),
+                rx.vstack(rx.text("Punto fin", font_size="11px", color="gray"), rx.input(value=fin_val, on_change=set_fin, width="130px", size="1", placeholder="Fin"), spacing="0"),
+                spacing="3",
+            ),
+            rx.button("Guardar camioneta", on_click=State.guardar_movimiento_vista(equipo_num), size="1", color_scheme="green", variant="soft"),
+            spacing="2",
+        ),
+        padding="10px", background=bg, border_radius="6px",
     )
 
 
 def page_vista_dia() -> rx.Component:
     return layout(
         rx.vstack(
-            rx.heading("Vista del Día", size="6"),
+            rx.heading("Vista del Dia", size="6"),
             rx.divider(),
+            rx.cond(State.vista_exito, rx.callout(State.vista_exito, icon="check", color_scheme="green")),
             rx.hstack(
                 rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.vista_fecha, on_change=State.set_vista_fecha, width="180px"), spacing="1"),
                 rx.button("Buscar", on_click=State.cargar_vista_dia, color_scheme="blue"),
@@ -1429,10 +1570,14 @@ def page_vista_dia() -> rx.Component:
                     rx.text("Equipo 1", font_size="14px", font_weight="700", color="#1e3a8a"),
                     rx.cond(
                         State.vista_mov_equipo1,
-                        rx.box(
-                            rx.text(f"Salida: {State.vista_mov_equipo1['hora_salida']} — Llegada: {State.vista_mov_equipo1['hora_llegada']}", font_size="12px", color="gray"),
-                            padding="8px", background="#eff6ff", border_radius="6px",
+                        vista_mov_editable(
+                            "1", "#1e3a8a", "#eff6ff",
+                            State.vista_edit_mov1_salida, State.vista_edit_mov1_llegada,
+                            State.vista_edit_mov1_inicio, State.vista_edit_mov1_fin,
+                            State.set_vista_edit_mov1_salida, State.set_vista_edit_mov1_llegada,
+                            State.set_vista_edit_mov1_inicio, State.set_vista_edit_mov1_fin,
                         ),
+                        rx.text("Sin movimiento cargado", font_size="12px", color="gray"),
                     ),
                     rx.table.root(
                         rx.table.header(rx.table.row(
@@ -1453,10 +1598,14 @@ def page_vista_dia() -> rx.Component:
                     rx.text("Equipo 2", font_size="14px", font_weight="700", color="#0f766e"),
                     rx.cond(
                         State.vista_mov_equipo2,
-                        rx.box(
-                            rx.text(f"Salida: {State.vista_mov_equipo2['hora_salida']} — Llegada: {State.vista_mov_equipo2['hora_llegada']}", font_size="12px", color="gray"),
-                            padding="8px", background="#f0fdf4", border_radius="6px",
+                        vista_mov_editable(
+                            "2", "#0f766e", "#f0fdf4",
+                            State.vista_edit_mov2_salida, State.vista_edit_mov2_llegada,
+                            State.vista_edit_mov2_inicio, State.vista_edit_mov2_fin,
+                            State.set_vista_edit_mov2_salida, State.set_vista_edit_mov2_llegada,
+                            State.set_vista_edit_mov2_inicio, State.set_vista_edit_mov2_fin,
                         ),
+                        rx.text("Sin movimiento cargado", font_size="12px", color="gray"),
                     ),
                     rx.table.root(
                         rx.table.header(rx.table.row(
@@ -1489,7 +1638,7 @@ def hist_servicio_row(s: dict) -> rx.Component:
         rx.table.cell(s["tipo_servicio"]),
         rx.table.cell(rx.cond(s["dispositivo"], s["dispositivo"], "-")),
         rx.table.cell(rx.cond(s["patente"], s["patente"], "-")),
-        rx.table.cell(rx.cond(s["equipo_id"], s["equipo_id"], "-")),
+        rx.table.cell(s["equipo_nombre"]),
         rx.table.cell(
             rx.select(
                 ["PENDIENTE", "CONFIRMADO", "REALIZADO"],
@@ -1498,7 +1647,49 @@ def hist_servicio_row(s: dict) -> rx.Component:
                 width="140px",
             )
         ),
-        rx.table.cell(rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("servicio_hist", s["id"]))),
+        rx.table.cell(
+            rx.hstack(
+                rx.button("Editar", size="1", color_scheme="blue", variant="soft", on_click=State.abrir_edit_hist(s)),
+                rx.button("Eliminar", size="1", color_scheme="red", variant="soft", on_click=State.iniciar_confirm("servicio_hist", s["id"])),
+                spacing="1",
+            )
+        ),
+    )
+
+
+def hist_edit_dialog() -> rx.Component:
+    return rx.dialog.root(
+        rx.dialog.content(
+            rx.dialog.title("Editar Servicio"),
+            rx.vstack(
+                rx.hstack(
+                    rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.hist_edit_fecha, on_change=State.set_hist_edit_fecha, width="160px"), spacing="1"),
+                    rx.vstack(rx.text("Hora", font_size="12px", color="gray"), rx.input(type="time", value=State.hist_edit_hora, on_change=State.set_hist_edit_hora, width="130px"), spacing="1"),
+                    spacing="3",
+                ),
+                rx.vstack(rx.text("Cliente", font_size="12px", color="gray"), rx.input(value=State.hist_edit_cliente, on_change=State.set_hist_edit_cliente, width="100%"), spacing="1"),
+                rx.hstack(
+                    rx.vstack(rx.text("Tipo", font_size="12px", color="gray"), rx.select(["INSTALACION", "REVISION", "DESINSTALACION"], value=State.hist_edit_tipo, on_change=State.set_hist_edit_tipo, width="180px"), spacing="1"),
+                    rx.vstack(rx.text("Dispositivo", font_size="12px", color="gray"), rx.select(["GPS", "LECTORA", "GPS y LECTORA"], value=State.hist_edit_dispositivo, on_change=State.set_hist_edit_dispositivo, width="180px"), spacing="1"),
+                    spacing="3",
+                ),
+                rx.hstack(
+                    rx.vstack(rx.text("Patente", font_size="12px", color="gray"), rx.input(value=State.hist_edit_patente, on_change=State.set_hist_edit_patente, width="160px"), spacing="1"),
+                    rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO"], value=State.hist_edit_estado, on_change=State.set_hist_edit_estado, width="160px"), spacing="1"),
+                    spacing="3",
+                ),
+                rx.vstack(rx.text("Equipo", font_size="12px", color="gray"), rx.select(State.equipos_nombres, value=State.hist_edit_equipo_nombre, on_change=State.set_hist_edit_equipo_sel, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.hist_edit_obs, on_change=State.set_hist_edit_obs, width="100%"), spacing="1"),
+                rx.hstack(
+                    rx.button("Cancelar", on_click=State.cerrar_edit_hist, variant="soft", color_scheme="gray"),
+                    rx.button("Guardar", on_click=State.guardar_edit_hist, color_scheme="blue"),
+                    spacing="3", justify="end", width="100%",
+                ),
+                spacing="3", width="100%",
+            ),
+            max_width="500px",
+        ),
+        open=State.mostrar_edit_hist,
     )
 
 
@@ -1510,7 +1701,7 @@ def page_historial_svc() -> rx.Component:
             rx.hstack(
                 rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO"], placeholder="Todos", value=State.hist_filtro_estado, on_change=State.set_hist_filtro_estado, width="160px"), spacing="1"),
                 rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.hist_filtro_mes, on_change=State.set_hist_filtro_mes, width="100px"), spacing="1"),
-                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.hist_filtro_anio, on_change=State.set_hist_filtro_anio, width="100px"), spacing="1"),
+                rx.vstack(rx.text("Ano", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.hist_filtro_anio, on_change=State.set_hist_filtro_anio, width="100px"), spacing="1"),
                 rx.button("Buscar", on_click=State.cargar_historial_svc, color_scheme="blue"),
                 spacing="4", align="end",
             ),
@@ -1523,11 +1714,12 @@ def page_historial_svc() -> rx.Component:
                     rx.table.column_header_cell("Patente"),
                     rx.table.column_header_cell("Equipo"),
                     rx.table.column_header_cell("Estado"),
-                    rx.table.column_header_cell(""),
+                    rx.table.column_header_cell("Acciones"),
                 )),
                 rx.table.body(rx.foreach(State.hist_servicios, hist_servicio_row)),
                 width="100%",
             ),
+            hist_edit_dialog(),
             spacing="4", width="100%",
             on_mount=[State.cargar_historial_svc, State.cargar_equipos],
         )
@@ -1739,7 +1931,7 @@ def page_stats_clientes() -> rx.Component:
             rx.heading("Servicios por Cliente", size="6"),
             rx.divider(),
             rx.hstack(
-                rx.vstack(rx.text("Cliente", font_size="12px", color="gray"), rx.select(State.dir_clientes_nombres, placeholder="Todos", value=State.stats_cli_cliente_id, on_change=State.set_stats_cli_cliente_id, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Cliente", font_size="12px", color="gray"), rx.select(State.dir_clientes_nombres, placeholder="Todos", value=State.stats_cli_cliente_id, on_change=State.set_stats_cli_cliente_nombre, width="200px"), spacing="1"),
                 rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.stats_cli_mes, on_change=State.set_stats_cli_mes, width="100px"), spacing="1"),
                 rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.stats_cli_anio, on_change=State.set_stats_cli_anio, width="100px"), spacing="1"),
                 rx.button("Buscar", on_click=State.cargar_stats_clientes, color_scheme="blue"),

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from database import supabase
 from datetime import datetime, timedelta
+import calendar
 
 router = APIRouter()
 
@@ -23,7 +24,8 @@ def horas_trabajadas(mes: int = None, anio: int = None, equipo_id: str = None):
     anio = anio or datetime.now().year
     mes = mes or datetime.now().month
     desde = f"{anio}-{str(mes).zfill(2)}-01"
-    hasta = f"{anio}-{str(mes).zfill(2)}-31"
+    ultimo_dia = calendar.monthrange(int(anio), int(mes))[1]
+    hasta = f"{anio}-{str(mes).zfill(2)}-{ultimo_dia}"
 
     query = supabase.table("movimientos_camioneta")\
         .select("*, equipos(nombre, patente), tecnicos_jornada(*, empleados(nombre))")\
@@ -70,7 +72,8 @@ def detalle_horas_tecnico(tecnico_id: str, mes: int = None, anio: int = None):
     anio = anio or datetime.now().year
     mes = mes or datetime.now().month
     desde = f"{anio}-{str(mes).zfill(2)}-01"
-    hasta = f"{anio}-{str(mes).zfill(2)}-31"
+    ultimo_dia = calendar.monthrange(int(anio), int(mes))[1]
+    hasta = f"{anio}-{str(mes).zfill(2)}-{ultimo_dia}"
 
     jornadas = supabase.table("tecnicos_jornada")\
         .select("*, movimientos_camioneta(fecha, hora_salida, hora_llegada, punto_inicio, punto_fin, equipos(nombre))")\
@@ -105,7 +108,8 @@ def servicios_por_cliente(cliente_id: str = None, mes: int = None, anio: int = N
     anio = anio or datetime.now().year
     mes = mes or datetime.now().month
     desde = f"{anio}-{str(mes).zfill(2)}-01"
-    hasta = f"{anio}-{str(mes).zfill(2)}-31"
+    ultimo_dia = calendar.monthrange(int(anio), int(mes))[1]
+    hasta = f"{anio}-{str(mes).zfill(2)}-{ultimo_dia}"
 
     query = supabase.table("servicios")\
         .select("*, equipos(nombre)")\
@@ -128,7 +132,8 @@ def reporte_cruzado(mes: int = None, anio: int = None):
     anio = anio or datetime.now().year
     mes = mes or datetime.now().month
     desde = f"{anio}-{str(mes).zfill(2)}-01"
-    hasta = f"{anio}-{str(mes).zfill(2)}-31"
+    ultimo_dia = calendar.monthrange(int(anio), int(mes))[1]
+    hasta = f"{anio}-{str(mes).zfill(2)}-{ultimo_dia}"
 
     horas = horas_trabajadas(mes=mes, anio=anio)
     servicios_data = supabase.table("servicios")\

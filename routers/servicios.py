@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from models.servicios import ServicioCreate, ServicioUpdate
 from database import supabase
+import calendar
 
 router = APIRouter()
 
@@ -26,8 +27,9 @@ def listar_servicios(
     if fecha:
         query = query.eq("fecha", fecha)
     if mes and anio:
+        ultimo_dia = calendar.monthrange(int(anio), int(mes))[1]
         desde = f"{anio}-{str(mes).zfill(2)}-01"
-        hasta = f"{anio}-{str(mes).zfill(2)}-31"
+        hasta = f"{anio}-{str(mes).zfill(2)}-{ultimo_dia}"
         query = query.gte("fecha", desde).lte("fecha", hasta)
     result = query.order("fecha", desc=True).order("hora_programada").execute()
     return result.data
