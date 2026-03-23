@@ -5,17 +5,31 @@ from database import supabase
 router = APIRouter()
 
 @router.get("/")
-def listar_servicios(cliente: str = None, estado: str = None, mes: int = None, anio: int = None):
-    query = supabase.table("servicios").select("*")
+def listar_servicios(
+    cliente_ref: str = None,
+    cliente: str = None,
+    equipo_id: str = None,
+    estado: str = None,
+    mes: int = None,
+    anio: int = None,
+    fecha: str = None
+):
+    query = supabase.table("servicios").select("*, equipos(nombre, patente)")
+    if cliente_ref:
+        query = query.eq("cliente_ref", cliente_ref)
     if cliente:
-        query = query.eq("cliente", cliente)
+        query = query.ilike("cliente", f"%{cliente}%")
+    if equipo_id:
+        query = query.eq("equipo_id", equipo_id)
     if estado:
         query = query.eq("estado", estado)
+    if fecha:
+        query = query.eq("fecha", fecha)
     if mes and anio:
         desde = f"{anio}-{str(mes).zfill(2)}-01"
         hasta = f"{anio}-{str(mes).zfill(2)}-31"
         query = query.gte("fecha", desde).lte("fecha", hasta)
-    result = query.order("fecha", desc=True).execute()
+    result = query.order("fecha", desc=True).order("hora_programada").execute()
     return result.data
 
 @router.post("/")

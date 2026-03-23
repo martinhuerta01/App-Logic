@@ -11,36 +11,12 @@ class State(rx.State):
     token: str = ""
     error: str = ""
     cargando: bool = False
-    pagina: str = "registro"
+    pagina: str = "carga_dia"
     confirm_id: str = ""
     confirm_tipo: str = ""
     mostrar_confirm: bool = False
-    empleados: list[dict] = []
-    nombres_empleados: list[str] = []
-    empleado_sel: str = ""
-    fecha_jornada: str = ""
-    tipo_asistencia: str = "ACTIVO"
-    hora_entrada: str = ""
-    hora_salida: str = ""
-    instalaciones: str = "0"
-    desinstalaciones: str = "0"
-    revisiones: str = "0"
-    detalle: str = ""
-    motivo: str = ""
-    tipo_licencia: str = ""
-    fecha_desde: str = ""
-    fecha_hasta: str = ""
-    exito: str = ""
-    jornadas: list[dict] = []
-    filtro_empleado: str = ""
-    filtro_mes: str = ""
-    filtro_anio: str = "2026"
-    nuevo_empleado: str = ""
-    stats_mes: str = ""
-    stats_anio: str = "2026"
-    stats_resumen: list[dict] = []
-    stats_barras_horas: list[dict] = []
-    stats_barras_prod: list[dict] = []
+
+    # Stock
     productos: list[dict] = []
     nombres_productos: list[str] = []
     ubicaciones: list[dict] = []
@@ -71,6 +47,9 @@ class State(rx.State):
     prod_edit_cat: str = ""
     prod_exito: str = ""
     prod_error: str = ""
+    mostrar_form_prod: bool = False
+
+    # Proveedores
     proveedores: list[dict] = []
     prov_nombre: str = ""
     prov_responsable: str = ""
@@ -83,7 +62,8 @@ class State(rx.State):
     prov_exito: str = ""
     prov_error: str = ""
     mostrar_form_prov: bool = False
-    mostrar_form_prod: bool = False
+
+    # Terceros (se usan para stock)
     terceros: list[dict] = []
     nombres_terceros: list[str] = []
     terc_nombre: str = ""
@@ -99,55 +79,87 @@ class State(rx.State):
     terc_sel_id: str = ""
     terc_sel_nombre: str = ""
     terc_stock: list[dict] = []
-    servicios: list[dict] = []
-    serv_fecha: str = ""
-    serv_cliente_tipo: str = ""
-    serv_cliente_otro: str = ""
-    serv_es_serenisima: bool = False
-    serv_tipo: str = "INSTALACION"
-    serv_tipo_unidad: str = ""
-    serv_alcance: str = ""
-    serv_patente: str = ""
-    serv_responsable: str = ""
-    serv_responsable_tipo: str = ""
-    serv_tecnicos: str = ""
-    serv_estado: str = "PENDIENTE"
-    serv_observaciones: str = ""
-    serv_exito: str = ""
-    serv_error: str = ""
-    serv_filtro_estado: str = ""
-    serv_filtro_mes: str = ""
-    serv_filtro_anio: str = "2026"
-    serv_edit_id: str = ""
 
-    # Reportes
-    rep_mes: str = ""
-    rep_anio: str = "2026"
-    rep_jornadas: list[dict] = []
-    rep_por_estado: list[dict] = []
-    rep_por_tipo: list[dict] = []
-    rep_por_cliente: list[dict] = []
-    rep_servicios_total: int = 0
+    # Equipos
+    equipos: list[dict] = []
+    equipos_nombres: list[str] = []
 
-    @rx.var
-    def rep_total_dias(self) -> int:
-        return sum(j.get("dias_trabajados", 0) for j in self.rep_jornadas)
+    # Carga del día
+    carga_fecha: str = ""
+    carga_equipo_id: str = ""
+    carga_equipo_nombre: str = ""
+    carga_cliente_sel: str = ""
+    carga_cliente_ref: str = ""
+    carga_hora: str = ""
+    carga_tipo: str = "INSTALACION"
+    carga_dispositivo: str = "GPS"
+    carga_patente: str = ""
+    carga_estado: str = "PENDIENTE"
+    carga_obs_serv: str = ""
+    carga_servicios: list[dict] = []
+    carga_punto_inicio: str = ""
+    carga_hora_salida: str = ""
+    carga_punto_fin: str = ""
+    carga_hora_llegada: str = ""
+    carga_obs_mov: str = ""
+    carga_tecnicos_presencia: list[dict] = []
+    carga_exito: str = ""
+    carga_error: str = ""
 
-    @rx.var
-    def rep_total_horas(self) -> float:
-        return round(sum(j.get("horas_total", 0.0) for j in self.rep_jornadas), 1)
+    # Vista del día
+    vista_fecha: str = ""
+    vista_servicios_equipo1: list[dict] = []
+    vista_servicios_equipo2: list[dict] = []
+    vista_mov_equipo1: dict = {}
+    vista_mov_equipo2: dict = {}
 
-    @rx.var
-    def rep_total_instalaciones(self) -> int:
-        return sum(j.get("instalaciones", 0) for j in self.rep_jornadas)
+    # Historial servicios
+    hist_servicios: list[dict] = []
+    hist_filtro_estado: str = ""
+    hist_filtro_mes: str = ""
+    hist_filtro_anio: str = "2026"
+    hist_filtro_equipo: str = ""
+    hist_edit_id: str = ""
+    hist_edit_estado: str = ""
 
-    @rx.var
-    def rep_total_desinstalaciones(self) -> int:
-        return sum(j.get("desinstalaciones", 0) for j in self.rep_jornadas)
+    # Directorio
+    dir_tipo: str = "interno"
+    dir_nombre: str = ""
+    dir_telefono: str = ""
+    dir_email: str = ""
+    dir_equipo_id: str = ""
+    dir_ciudad: str = ""
+    dir_contacto: str = ""
+    dir_observaciones: str = ""
+    dir_exito: str = ""
+    dir_error: str = ""
+    dir_personal: list[dict] = []
+    dir_filtro_personal: str = ""
+    dir_clientes_list: list[dict] = []
+    dir_clientes_nombres: list[str] = []
+    dir_edit_id: str = ""
 
-    @rx.var
-    def rep_total_revisiones(self) -> int:
-        return sum(j.get("revisiones", 0) for j in self.rep_jornadas)
+    # Estadísticas horas
+    stats2_mes: str = ""
+    stats2_anio: str = "2026"
+    stats2_tecnicos: list[dict] = []
+    stats2_movimientos: list[dict] = []
+    stats2_tecnico_sel: str = ""
+    stats2_detalle: list[dict] = []
+
+    # Estadísticas servicios por cliente
+    stats_cli_mes: str = ""
+    stats_cli_anio: str = "2026"
+    stats_cli_cliente_id: str = ""
+    stats_cli_resumen: dict = {}
+    stats_cli_servicios: list[dict] = []
+
+    # Reporte cruzado
+    stats_cruz_mes: str = ""
+    stats_cruz_anio: str = "2026"
+    stats_cruz_tecnicos: list[dict] = []
+
+    # ─── computed vars ───────────────────────────────────────────────────────
 
     @rx.var
     def productos_filtrados(self) -> list[dict]:
@@ -155,19 +167,7 @@ class State(rx.State):
             return self.productos
         return [p for p in self.productos if p["categoria"] == self.prod_filtro_cat]
 
-    @rx.var
-    def responsables_opciones(self) -> list[str]:
-        base = ["EQUIPO 1", "EQUIPO 2", "VITACO", "ZARZA", "TALLER INTERNO"]
-        return base + self.nombres_terceros
-
-    def set_serv_cliente_tipo(self, val: str):
-        self.serv_cliente_tipo = val
-        self.serv_es_serenisima = val == "LA SERENISIMA"
-
-    def set_serv_responsable_tipo(self, val: str):
-        self.serv_responsable_tipo = val
-        self.serv_responsable = val
-        self.serv_tecnicos = ""
+    # ─── auth ────────────────────────────────────────────────────────────────
 
     async def login(self):
         self.cargando = True
@@ -195,169 +195,13 @@ class State(rx.State):
     def logout(self):
         self.usuario = ""
         self.token = ""
-        self.pagina = "registro"
+        self.pagina = "carga_dia"
         return rx.redirect("/")
 
     def set_pagina(self, pagina: str):
         self.pagina = pagina
 
-    async def cargar_empleados(self):
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.get(f"{API_URL}/empleados/")
-        self.empleados = r.json()
-        self.nombres_empleados = [e["nombre"] for e in self.empleados]
-
-    def reset_formulario(self):
-        self.empleado_sel = ""
-        self.fecha_jornada = ""
-        self.tipo_asistencia = "ACTIVO"
-        self.hora_entrada = ""
-        self.hora_salida = ""
-        self.instalaciones = "0"
-        self.desinstalaciones = "0"
-        self.revisiones = "0"
-        self.detalle = ""
-        self.motivo = ""
-        self.tipo_licencia = ""
-        self.fecha_desde = ""
-        self.fecha_hasta = ""
-        self.error = ""
-        self.exito = ""
-
-    async def guardar_jornada(self):
-        if not self.empleado_sel or not self.fecha_jornada:
-            self.error = "Completá empleado y fecha"
-            return
-        emp = next((e for e in self.empleados if e["nombre"] == self.empleado_sel), None)
-        if not emp:
-            return
-        payload = {
-            "empleado_id": emp["id"],
-            "nombre": emp["nombre"],
-            "fecha": self.fecha_jornada,
-            "tipo_asistencia": self.tipo_asistencia,
-            "hora_entrada": self.hora_entrada or None,
-            "hora_salida": self.hora_salida or None,
-            "instalaciones": int(self.instalaciones),
-            "desinstalaciones": int(self.desinstalaciones),
-            "revisiones": int(self.revisiones),
-            "detalle": self.detalle or None,
-            "motivo": self.motivo or None,
-            "tipo_licencia": self.tipo_licencia or None,
-            "fecha_desde": self.fecha_desde or None,
-            "fecha_hasta": self.fecha_hasta or None,
-            "cargado_por": self.usuario,
-        }
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(f"{API_URL}/jornadas/", json=payload)
-        if r.status_code == 200:
-            self.reset_formulario()
-            self.exito = "Jornada guardada correctamente"
-        else:
-            self.error = r.json().get("detail", "Error al guardar")
-            self.exito = ""
-
-    def _calcular_horas(self, jornadas):
-        from datetime import datetime
-        for j in jornadas:
-            if j.get("hora_entrada") and j.get("hora_salida"):
-                try:
-                    ent = datetime.strptime(j["hora_entrada"], "%H:%M")
-                    sal = datetime.strptime(j["hora_salida"], "%H:%M")
-                    diff = (sal - ent).seconds / 3600
-                    j["horas"] = round(diff, 2)
-                    extra = round(diff - 8, 2)
-                    j["diferencia"] = extra
-                    j["dif_str"] = f"+{extra}h" if extra >= 0 else f"{extra}h"
-                    j["dif_color"] = "green" if extra >= 0 else "red"
-                except:
-                    j["horas"] = 0
-                    j["diferencia"] = 0
-                    j["dif_str"] = "-"
-                    j["dif_color"] = "gray"
-            else:
-                j["horas"] = 0
-                j["diferencia"] = 0
-                j["dif_str"] = "-"
-                j["dif_color"] = "gray"
-        return jornadas
-
-    async def cargar_historial(self):
-        params = {}
-        if self.filtro_mes:
-            params["mes"] = self.filtro_mes
-        if self.filtro_anio:
-            params["anio"] = self.filtro_anio
-        if self.filtro_empleado:
-            emp = next((e for e in self.empleados if e["nombre"] == self.filtro_empleado), None)
-            if emp:
-                params["empleado_id"] = emp["id"]
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.get(f"{API_URL}/jornadas/", params=params)
-        self.jornadas = self._calcular_horas(r.json())
-
-    async def eliminar_jornada(self, jornada_id: str):
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.delete(f"{API_URL}/jornadas/{jornada_id}")
-        await self.cargar_historial()
-
-    async def agregar_empleado(self):
-        if not self.nuevo_empleado:
-            return
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.post(f"{API_URL}/empleados/", json={"nombre": self.nuevo_empleado})
-        self.nuevo_empleado = ""
-        await self.cargar_empleados()
-
-    async def desactivar_empleado(self, empleado_id: str):
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            await client.delete(f"{API_URL}/empleados/{empleado_id}")
-        await self.cargar_empleados()
-
-    async def cargar_estadisticas(self):
-        params = {}
-        if self.stats_mes:
-            params["mes"] = self.stats_mes
-        if self.stats_anio:
-            params["anio"] = self.stats_anio
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.get(f"{API_URL}/jornadas/", params=params)
-        raw = self._calcular_horas(r.json())
-        resumen = {}
-        for j in raw:
-            nombre = j["nombre"]
-            if nombre not in resumen:
-                resumen[nombre] = {"nombre": nombre, "dias": 0, "horas_total": 0.0, "extras": 0.0, "debe": 0.0, "instalaciones": 0, "desinstalaciones": 0, "revisiones": 0, "ausencias": 0}
-            r2 = resumen[nombre]
-            if j["tipo_asistencia"] in ["ACTIVO", "LLEGADA_TARDE"]:
-                r2["dias"] += 1
-                r2["horas_total"] = round(r2["horas_total"] + j["horas"], 2)
-                if j["diferencia"] > 0:
-                    r2["extras"] = round(r2["extras"] + j["diferencia"], 2)
-                else:
-                    r2["debe"] = round(r2["debe"] + abs(j["diferencia"]), 2)
-                r2["instalaciones"] += j.get("instalaciones", 0)
-                r2["desinstalaciones"] += j.get("desinstalaciones", 0)
-                r2["revisiones"] += j.get("revisiones", 0)
-            elif j["tipo_asistencia"] in ["AUSENCIA_SJ", "AUSENCIA_J"]:
-                r2["ausencias"] += 1
-        for v in resumen.values():
-            v["extras_str"] = f"+{v['extras']}h"
-            v["debe_str"] = f"-{v['debe']}h"
-        self.stats_resumen = list(resumen.values())
-        dias = {}
-        for j in raw:
-            if j["tipo_asistencia"] in ["ACTIVO", "LLEGADA_TARDE"]:
-                dia = j["fecha"][-2:]
-                if dia not in dias:
-                    dias[dia] = {"dia": dia, "horas": 0.0}
-                dias[dia]["horas"] = round(dias[dia]["horas"] + j["horas"], 2)
-        self.stats_barras_horas = sorted(dias.values(), key=lambda x: x["dia"])
-        self.stats_barras_prod = [
-            {"tipo": "Instalaciones", "cantidad": sum(j.get("instalaciones", 0) for j in raw)},
-            {"tipo": "Desinstalaciones", "cantidad": sum(j.get("desinstalaciones", 0) for j in raw)},
-            {"tipo": "Revisiones", "cantidad": sum(j.get("revisiones", 0) for j in raw)},
-        ]
+    # ─── stock ───────────────────────────────────────────────────────────────
 
     async def cargar_productos_y_ubicaciones(self):
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -497,6 +341,8 @@ class State(rx.State):
         self.prod_edit_id = ""
         await self.cargar_productos()
 
+    # ─── proveedores ─────────────────────────────────────────────────────────
+
     async def cargar_proveedores(self):
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.get(f"{API_URL}/proveedores/")
@@ -563,6 +409,8 @@ class State(rx.State):
         self.prov_edit_id = ""
         self.mostrar_form_prov = False
         await self.cargar_proveedores()
+
+    # ─── terceros ────────────────────────────────────────────────────────────
 
     async def cargar_terceros(self):
         try:
@@ -647,103 +495,312 @@ class State(rx.State):
         self.terc_stock = raw
         self.pagina = "terceros_stock"
 
-    def reset_servicio(self):
-        self.serv_fecha = ""
-        self.serv_cliente_tipo = ""
-        self.serv_cliente_otro = ""
-        self.serv_es_serenisima = False
-        self.serv_tipo = "INSTALACION"
-        self.serv_tipo_unidad = ""
-        self.serv_alcance = ""
-        self.serv_patente = ""
-        self.serv_responsable = ""
-        self.serv_responsable_tipo = ""
-        self.serv_tecnicos = ""
-        self.serv_estado = "PENDIENTE"
-        self.serv_observaciones = ""
-        self.serv_exito = ""
-        self.serv_error = ""
-        self.serv_edit_id = ""
+    # ─── equipos ─────────────────────────────────────────────────────────────
 
-    async def cargar_servicios(self):
-        params = {}
-        if self.serv_filtro_estado:
-            params["estado"] = self.serv_filtro_estado
-        if self.serv_filtro_mes:
-            params["mes"] = self.serv_filtro_mes
-        if self.serv_filtro_anio:
-            params["anio"] = self.serv_filtro_anio
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                r = await client.get(f"{API_URL}/servicios/", params=params)
-            raw = r.json()
-            if not isinstance(raw, list):
-                raw = []
-            for s in raw:
-                s["estado_color"] = {
-                    "PENDIENTE": "orange", "CONFIRMADO": "blue", "REALIZADO": "green",
-                    "SUSPENDIDO": "red", "REPROGRAMADO": "purple",
-                }.get(s.get("estado", ""), "gray")
-            self.servicios = raw
-        except Exception:
-            self.servicios = []
-
-    async def guardar_servicio(self):
-        cliente = self.serv_cliente_otro if self.serv_cliente_tipo == "OTRO" else self.serv_cliente_tipo
-        if not self.serv_fecha or not cliente or not self.serv_tipo:
-            self.serv_error = "Completá fecha, cliente y tipo"
-            return
-        responsable_final = self.serv_responsable_tipo
-        if self.serv_responsable_tipo in ["EQUIPO 1", "EQUIPO 2"] and self.serv_tecnicos:
-            responsable_final = f"{self.serv_responsable_tipo} ({self.serv_tecnicos})"
-        payload = {
-            "fecha": self.serv_fecha,
-            "cliente": cliente,
-            "es_serenisima": self.serv_es_serenisima,
-            "tipo_servicio": self.serv_tipo,
-            "tipo_unidad": self.serv_tipo_unidad or None,
-            "alcance": self.serv_alcance or None,
-            "patente": self.serv_patente or None,
-            "responsable": responsable_final or None,
-            "estado": self.serv_estado,
-            "observaciones": self.serv_observaciones or None,
-            "cargado_por": self.usuario,
-        }
+    async def cargar_equipos(self):
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if self.serv_edit_id:
-                r = await client.put(f"{API_URL}/servicios/{self.serv_edit_id}", json=payload)
-            else:
-                r = await client.post(f"{API_URL}/servicios/", json=payload)
-        if r.status_code == 200:
-            self.reset_servicio()
-            self.serv_exito = "Servicio guardado correctamente"
-            await self.cargar_servicios()
-        else:
-            self.serv_error = "Error al guardar servicio"
+            r = await client.get(f"{API_URL}/equipos/")
+        self.equipos = r.json()
+        self.equipos_nombres = [e["nombre"] for e in self.equipos]
 
-    async def eliminar_servicio(self, serv_id: str):
+    def set_carga_equipo(self, nombre: str):
+        self.carga_equipo_nombre = nombre
+        eq = next((e for e in self.equipos if e["nombre"] == nombre), None)
+        if eq:
+            self.carga_equipo_id = eq["id"]
+            tecnicos_equipo = [t for t in self.dir_personal if t.get("equipo_id") == eq["id"] and t.get("tipo") == "interno"]
+            self.carga_tecnicos_presencia = [
+                {"tecnico_id": t["id"], "nombre": t["nombre"], "presente": True, "motivo_ausencia": ""}
+                for t in tecnicos_equipo
+            ]
+
+    def toggle_tecnico_presencia(self, tecnico_id: str):
+        self.carga_tecnicos_presencia = [
+            {**t, "presente": not t["presente"]} if t["tecnico_id"] == tecnico_id else t
+            for t in self.carga_tecnicos_presencia
+        ]
+
+    def set_motivo_ausencia(self, tecnico_id: str, motivo: str):
+        self.carga_tecnicos_presencia = [
+            {**t, "motivo_ausencia": motivo} if t["tecnico_id"] == tecnico_id else t
+            for t in self.carga_tecnicos_presencia
+        ]
+
+    def agregar_servicio_a_lista(self):
+        if not self.carga_cliente_sel or not self.carga_tipo:
+            self.carga_error = "Completá cliente y tipo"
+            return
+        import uuid
+        nuevo = {
+            "temp_id": str(uuid.uuid4())[:8],
+            "cliente": self.carga_cliente_sel,
+            "cliente_ref": self.carga_cliente_ref,
+            "hora": self.carga_hora,
+            "tipo_servicio": self.carga_tipo,
+            "dispositivo": self.carga_dispositivo,
+            "patente": self.carga_patente,
+            "estado": self.carga_estado,
+            "observaciones": self.carga_obs_serv,
+        }
+        self.carga_servicios = self.carga_servicios + [nuevo]
+        self.carga_patente = ""
+        self.carga_obs_serv = ""
+        self.carga_error = ""
+
+    def quitar_servicio_de_lista(self, temp_id: str):
+        self.carga_servicios = [s for s in self.carga_servicios if s["temp_id"] != temp_id]
+
+    async def guardar_carga_dia(self):
+        if not self.carga_fecha or not self.carga_equipo_id:
+            self.carga_error = "Completá fecha y equipo"
+            return
+        if not self.carga_servicios:
+            self.carga_error = "Agregá al menos un servicio"
+            return
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for s in self.carga_servicios:
+                payload = {
+                    "fecha": self.carga_fecha,
+                    "hora_programada": s["hora"] or None,
+                    "equipo_id": self.carga_equipo_id,
+                    "cliente": s["cliente"],
+                    "cliente_ref": s["cliente_ref"] or None,
+                    "tipo_servicio": s["tipo_servicio"],
+                    "dispositivo": s["dispositivo"] or None,
+                    "patente": s["patente"] or None,
+                    "estado": s["estado"],
+                    "observaciones": s["observaciones"] or None,
+                    "cargado_por": self.usuario,
+                }
+                await client.post(f"{API_URL}/servicios/", json=payload)
+            if self.carga_hora_salida or self.carga_hora_llegada:
+                mov_payload = {
+                    "equipo_id": self.carga_equipo_id,
+                    "fecha": self.carga_fecha,
+                    "hora_salida": self.carga_hora_salida or None,
+                    "hora_llegada": self.carga_hora_llegada or None,
+                    "punto_inicio": self.carga_punto_inicio or None,
+                    "punto_fin": self.carga_punto_fin or None,
+                    "observaciones": self.carga_obs_mov or None,
+                    "cargado_por": self.usuario,
+                    "tecnicos": self.carga_tecnicos_presencia,
+                }
+                await client.post(f"{API_URL}/movimientos-camioneta/", json=mov_payload)
+        self.carga_servicios = []
+        self.carga_fecha = ""
+        self.carga_equipo_id = ""
+        self.carga_equipo_nombre = ""
+        self.carga_cliente_sel = ""
+        self.carga_hora = ""
+        self.carga_tipo = "INSTALACION"
+        self.carga_dispositivo = "GPS"
+        self.carga_patente = ""
+        self.carga_estado = "PENDIENTE"
+        self.carga_punto_inicio = ""
+        self.carga_hora_salida = ""
+        self.carga_punto_fin = ""
+        self.carga_hora_llegada = ""
+        self.carga_obs_mov = ""
+        self.carga_tecnicos_presencia = []
+        self.carga_exito = "Carga del día guardada correctamente"
+        self.carga_error = ""
+
+    async def cargar_vista_dia(self):
+        if not self.vista_fecha:
+            return
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/servicios/", params={"fecha": self.vista_fecha})
+            r_mov = await client.get(f"{API_URL}/movimientos-camioneta/")
+        servicios = r.json() if isinstance(r.json(), list) else []
+        eq1 = next((e for e in self.equipos if "1" in e["nombre"]), None)
+        eq2 = next((e for e in self.equipos if "2" in e["nombre"]), None)
+        self.vista_servicios_equipo1 = [s for s in servicios if s.get("equipo_id") == (eq1["id"] if eq1 else "")]
+        self.vista_servicios_equipo2 = [s for s in servicios if s.get("equipo_id") == (eq2["id"] if eq2 else "")]
+        movs = r_mov.json() if isinstance(r_mov.json(), list) else []
+        self.vista_mov_equipo1 = {}
+        self.vista_mov_equipo2 = {}
+        for mov in movs:
+            if mov.get("fecha") == self.vista_fecha:
+                if eq1 and mov.get("equipo_id") == eq1["id"]:
+                    self.vista_mov_equipo1 = mov
+                elif eq2 and mov.get("equipo_id") == eq2["id"]:
+                    self.vista_mov_equipo2 = mov
+
+    async def cargar_historial_svc(self):
+        params = {}
+        if self.hist_filtro_estado:
+            params["estado"] = self.hist_filtro_estado
+        if self.hist_filtro_mes:
+            params["mes"] = self.hist_filtro_mes
+        if self.hist_filtro_anio:
+            params["anio"] = self.hist_filtro_anio
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/servicios/", params=params)
+        raw = r.json()
+        if not isinstance(raw, list):
+            raw = []
+        for s in raw:
+            s["estado_color"] = {"PENDIENTE": "orange", "CONFIRMADO": "blue", "REALIZADO": "green"}.get(s.get("estado", ""), "gray")
+        self.hist_servicios = raw
+
+    async def actualizar_estado_servicio(self, serv_id: str, nuevo_estado: str):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.put(f"{API_URL}/servicios/{serv_id}", json={"estado": nuevo_estado})
+        await self.cargar_historial_svc()
+
+    async def eliminar_servicio_hist(self, serv_id: str):
         async with httpx.AsyncClient(timeout=30.0) as client:
             await client.delete(f"{API_URL}/servicios/{serv_id}")
-        await self.cargar_servicios()
+        await self.cargar_historial_svc()
 
-    def iniciar_edit_servicio(self, serv_id: str, fecha: str, cliente: str, es_seren: bool, tipo: str, unidad, alcance, patente, responsable, estado: str, obs):
-        self.serv_edit_id = serv_id
-        self.serv_fecha = fecha
-        if es_seren:
-            self.serv_cliente_tipo = "LA SERENISIMA"
-        else:
-            self.serv_cliente_tipo = "OTRO"
-            self.serv_cliente_otro = cliente
-        self.serv_es_serenisima = es_seren
-        self.serv_tipo = tipo
-        self.serv_tipo_unidad = unidad or ""
-        self.serv_alcance = alcance or ""
-        self.serv_patente = patente or ""
-        self.serv_responsable_tipo = responsable or ""
-        self.serv_responsable = responsable or ""
-        self.serv_estado = estado
-        self.serv_observaciones = obs or ""
-        self.pagina = "serv_cargar"
+    # ─── directorio ──────────────────────────────────────────────────────────
+
+    async def cargar_directorio_personal(self):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/directorio/")
+        self.dir_personal = r.json()
+
+    async def cargar_directorio_clientes(self):
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/terceros/")
+        data = r.json()
+        self.dir_clientes_list = data if isinstance(data, list) else []
+        self.dir_clientes_nombres = [c["nombre"] for c in self.dir_clientes_list]
+
+    async def guardar_directorio(self):
+        if not self.dir_nombre:
+            self.dir_error = "El nombre es obligatorio"
+            return
+        payload = {
+            "nombre": self.dir_nombre,
+            "tipo": self.dir_tipo,
+            "telefono": self.dir_telefono or None,
+            "email": self.dir_email or None,
+            "equipo_id": self.dir_equipo_id or None,
+            "ciudad": self.dir_ciudad or None,
+            "contacto": self.dir_contacto or None,
+            "observaciones": self.dir_observaciones or None,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if self.dir_edit_id:
+                await client.put(f"{API_URL}/directorio/{self.dir_edit_id}", json=payload)
+            else:
+                await client.post(f"{API_URL}/directorio/", json=payload)
+        self.dir_nombre = ""
+        self.dir_telefono = ""
+        self.dir_email = ""
+        self.dir_equipo_id = ""
+        self.dir_ciudad = ""
+        self.dir_contacto = ""
+        self.dir_observaciones = ""
+        self.dir_edit_id = ""
+        self.dir_exito = "Guardado correctamente"
+        self.dir_error = ""
+        await self.cargar_directorio_personal()
+
+    async def guardar_cliente(self):
+        if not self.dir_nombre:
+            self.dir_error = "El nombre es obligatorio"
+            return
+        payload = {
+            "nombre": self.dir_nombre,
+            "ciudad": self.dir_ciudad or "",
+            "telefono": self.dir_telefono or None,
+            "email": self.dir_email or None,
+            "empresa": None,
+            "observaciones": self.dir_observaciones or None,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if self.dir_edit_id:
+                await client.put(f"{API_URL}/terceros/{self.dir_edit_id}", json=payload)
+            else:
+                await client.post(f"{API_URL}/terceros/", json=payload)
+        self.dir_nombre = ""
+        self.dir_ciudad = ""
+        self.dir_telefono = ""
+        self.dir_email = ""
+        self.dir_observaciones = ""
+        self.dir_edit_id = ""
+        self.dir_exito = "Cliente guardado"
+        self.dir_error = ""
+        await self.cargar_directorio_clientes()
+
+    def iniciar_edit_dir(self, entry_id: str, nombre: str, tipo: str, telefono, email, equipo_id, ciudad, contacto, obs):
+        self.dir_edit_id = entry_id
+        self.dir_nombre = nombre or ""
+        self.dir_tipo = tipo or "interno"
+        self.dir_telefono = telefono or ""
+        self.dir_email = email or ""
+        self.dir_equipo_id = equipo_id or ""
+        self.dir_ciudad = ciudad or ""
+        self.dir_contacto = contacto or ""
+        self.dir_observaciones = obs or ""
+
+    def iniciar_edit_cliente_dir(self, entry_id: str, nombre: str, ciudad, telefono, email, obs):
+        self.dir_edit_id = entry_id
+        self.dir_nombre = nombre or ""
+        self.dir_ciudad = ciudad or ""
+        self.dir_telefono = telefono or ""
+        self.dir_email = email or ""
+        self.dir_observaciones = obs or ""
+
+    # ─── estadísticas ────────────────────────────────────────────────────────
+
+    async def cargar_stats_horas(self):
+        params = {}
+        if self.stats2_mes:
+            params["mes"] = self.stats2_mes
+        if self.stats2_anio:
+            params["anio"] = self.stats2_anio
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/estadisticas/horas", params=params)
+        data = r.json()
+        self.stats2_tecnicos = data.get("tecnicos", [])
+        self.stats2_movimientos = data.get("movimientos", [])
+        for t in self.stats2_tecnicos:
+            mins = t.get("diferencia_minutos", 0)
+            horas = abs(mins) // 60
+            minutos = abs(mins) % 60
+            signo = "+" if mins >= 0 else "\u2212"
+            t["diferencia_str"] = f"{signo}{horas}h {minutos:02d}m"
+            t["diferencia_color"] = "green" if mins >= 0 else "red"
+            t_mins = t.get("minutos_trabajados", 0)
+            t["horas_str"] = f"{t_mins // 60}h {t_mins % 60:02d}m"
+
+    async def cargar_stats_clientes(self):
+        params = {}
+        if self.stats_cli_mes:
+            params["mes"] = self.stats_cli_mes
+        if self.stats_cli_anio:
+            params["anio"] = self.stats_cli_anio
+        if self.stats_cli_cliente_id:
+            params["cliente_id"] = self.stats_cli_cliente_id
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/estadisticas/servicios-cliente", params=params)
+        data = r.json()
+        self.stats_cli_resumen = data.get("resumen", {})
+        raw = data.get("servicios", [])
+        for s in raw:
+            s["estado_color"] = {"PENDIENTE": "orange", "CONFIRMADO": "blue", "REALIZADO": "green"}.get(s.get("estado", ""), "gray")
+        self.stats_cli_servicios = raw
+
+    async def cargar_stats_cruzado(self):
+        params = {}
+        if self.stats_cruz_mes:
+            params["mes"] = self.stats_cruz_mes
+        if self.stats_cruz_anio:
+            params["anio"] = self.stats_cruz_anio
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{API_URL}/estadisticas/reporte-cruzado", params=params)
+        data = r.json()
+        tecnicos = data.get("tecnicos", [])
+        for t in tecnicos:
+            mins = t.get("diferencia_minutos", 0)
+            t["balance_str"] = f"{'+'if mins>=0 else chr(8722)}{abs(mins)//60}h {abs(mins)%60:02d}m"
+            t["balance_color"] = "green" if mins >= 0 else "red"
+        self.stats_cruz_tecnicos = tecnicos
+
+    # ─── confirm / eliminar ──────────────────────────────────────────────────
 
     def iniciar_confirm(self, tipo: str, id: str):
         self.confirm_tipo = tipo
@@ -762,10 +819,7 @@ class State(rx.State):
         self.confirm_id = ""
         self.confirm_tipo = ""
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if tipo == "jornada":
-                await client.delete(f"{API_URL}/jornadas/{id_}")
-                await self.cargar_historial()
-            elif tipo == "producto":
+            if tipo == "producto":
                 await client.delete(f"{API_URL}/stock/productos/{id_}")
                 await self.cargar_productos()
             elif tipo == "proveedor":
@@ -774,45 +828,32 @@ class State(rx.State):
             elif tipo == "tercero":
                 await client.delete(f"{API_URL}/terceros/{id_}")
                 await self.cargar_terceros()
-            elif tipo == "servicio":
+            elif tipo == "servicio_hist":
                 await client.delete(f"{API_URL}/servicios/{id_}")
-                await self.cargar_servicios()
+                await self.cargar_historial_svc()
+            elif tipo == "dir_personal":
+                await client.delete(f"{API_URL}/directorio/{id_}")
+                await self.cargar_directorio_personal()
+            elif tipo == "dir_cliente":
+                await client.delete(f"{API_URL}/terceros/{id_}")
+                await self.cargar_directorio_clientes()
 
-    async def cargar_reporte(self):
-        params = {}
-        if self.rep_mes:
-            params["mes"] = self.rep_mes
-        if self.rep_anio:
-            params["anio"] = self.rep_anio
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                r = await client.get(f"{API_URL}/jornadas/reporte_cruzado/", params=params)
-            data = r.json()
-            self.rep_jornadas = data.get("jornadas", [])
-            self.rep_servicios_total = data.get("servicios_total", 0)
-            self.rep_por_estado = data.get("por_estado", [])
-            self.rep_por_tipo = data.get("por_tipo", [])
-            self.rep_por_cliente = data.get("por_cliente", [])
-        except Exception:
-            self.rep_jornadas = []
-            self.rep_por_estado = []
-            self.rep_por_tipo = []
-            self.rep_por_cliente = []
 
+# ─── MODULOS ─────────────────────────────────────────────────────────────────
 
 MODULOS = [
-    {"id": "horarios", "icon": "clock", "label": "Horarios", "color": "#1e3a8a",
-     "subs": [("registro", "Registro"), ("historial", "Historial"), ("estadisticas", "Estadísticas"), ("tecnicos", "Técnicos")]},
-    {"id": "servicios", "icon": "wrench", "label": "Servicios", "color": "#0f766e",
-     "subs": [("serv_cargar", "Cargar servicio"), ("serv_lista", "Lista")]},
-    {"id": "stock", "icon": "package", "label": "Stock", "color": "#b45309",
+    {"id": "servicios", "icon": "wrench", "label": "Servicios",
+     "subs": [("carga_dia", "Carga del día"), ("vista_dia", "Vista del día"), ("historial_svc", "Historial")]},
+    {"id": "directorio", "icon": "book-user", "label": "Directorio",
+     "subs": [("dir_carga", "Carga"), ("dir_personal", "Personal"), ("dir_clientes", "Clientes"), ("dir_proveedores", "Proveedores")]},
+    {"id": "estadisticas", "icon": "chart-bar", "label": "Estadísticas",
+     "subs": [("stats_horas", "Horas trabajadas"), ("stats_clientes", "Servicios por cliente"), ("stats_cruzado", "Reporte cruzado")]},
+    {"id": "stock", "icon": "package", "label": "Stock",
      "subs": [("stock_actual", "Stock actual"), ("stock_entrada", "Entrada"), ("stock_salida", "Transferencia/Salida"), ("stock_productos", "Productos"), ("stock_proveedores", "Proveedores")]},
-    {"id": "terceros", "icon": "users", "label": "Terceros", "color": "#7c3aed",
-     "subs": [("terceros_lista", "Lista"), ("terceros_stock", "Stock")]},
-    {"id": "reportes", "icon": "chart-bar", "label": "Reportes", "color": "#be123c",
-     "subs": [("reporte_cruzado", "Horarios vs Servicios")]},
 ]
 
+
+# ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 
 def sidebar() -> rx.Component:
     return rx.box(
@@ -906,6 +947,8 @@ def layout(content: rx.Component) -> rx.Component:
     )
 
 
+# ─── LOGIN ───────────────────────────────────────────────────────────────────
+
 def login_page() -> rx.Component:
     return rx.center(
         rx.vstack(
@@ -925,211 +968,7 @@ def login_page() -> rx.Component:
     )
 
 
-def page_registro() -> rx.Component:
-    return layout(
-        rx.vstack(
-            rx.heading("Registro de Jornada", size="6"),
-            rx.divider(),
-            rx.hstack(
-                rx.vstack(rx.text("Técnico", font_size="12px", font_weight="600", color="gray"), rx.select(State.nombres_empleados, placeholder="Seleccionar técnico", value=State.empleado_sel, on_change=State.set_empleado_sel, width="200px"), spacing="1"),
-                rx.vstack(rx.text("Fecha", font_size="12px", font_weight="600", color="gray"), rx.input(type="date", value=State.fecha_jornada, on_change=State.set_fecha_jornada, width="180px"), spacing="1"),
-                rx.vstack(rx.text("Tipo", font_size="12px", font_weight="600", color="gray"), rx.select(["ACTIVO", "LLEGADA_TARDE", "AUSENCIA_SJ", "AUSENCIA_J", "VACACIONES", "LICENCIA"], value=State.tipo_asistencia, on_change=State.set_tipo_asistencia, width="200px"), spacing="1"),
-                spacing="4", wrap="wrap",
-            ),
-            rx.cond(
-                (State.tipo_asistencia == "ACTIVO") | (State.tipo_asistencia == "LLEGADA_TARDE"),
-                rx.vstack(
-                    rx.hstack(
-                        rx.vstack(rx.text("Entrada", font_size="12px", color="gray"), rx.input(type="time", value=State.hora_entrada, on_change=State.set_hora_entrada), spacing="1"),
-                        rx.vstack(rx.text("Salida", font_size="12px", color="gray"), rx.input(type="time", value=State.hora_salida, on_change=State.set_hora_salida), spacing="1"),
-                        spacing="4",
-                    ),
-                    rx.hstack(
-                        rx.vstack(rx.text("Instalaciones", font_size="12px", color="gray"), rx.input(type="number", value=State.instalaciones, on_change=State.set_instalaciones, width="120px"), spacing="1"),
-                        rx.vstack(rx.text("Desinstalaciones", font_size="12px", color="gray"), rx.input(type="number", value=State.desinstalaciones, on_change=State.set_desinstalaciones, width="120px"), spacing="1"),
-                        rx.vstack(rx.text("Revisiones", font_size="12px", color="gray"), rx.input(type="number", value=State.revisiones, on_change=State.set_revisiones, width="120px"), spacing="1"),
-                        spacing="4",
-                    ),
-                    rx.vstack(rx.text("Detalle", font_size="12px", color="gray"), rx.text_area(value=State.detalle, on_change=State.set_detalle, width="500px", rows="3"), spacing="1"),
-                    spacing="4",
-                ),
-            ),
-            rx.cond(State.tipo_asistencia == "AUSENCIA_J", rx.vstack(rx.text("Motivo", font_size="12px", color="gray"), rx.input(value=State.motivo, on_change=State.set_motivo, width="300px"), spacing="1")),
-            rx.cond(State.tipo_asistencia == "LICENCIA",
-                rx.hstack(
-                    rx.vstack(rx.text("Tipo licencia", font_size="12px", color="gray"), rx.input(value=State.tipo_licencia, on_change=State.set_tipo_licencia, width="200px"), spacing="1"),
-                    rx.vstack(rx.text("Desde", font_size="12px", color="gray"), rx.input(type="date", value=State.fecha_desde, on_change=State.set_fecha_desde), spacing="1"),
-                    rx.vstack(rx.text("Hasta", font_size="12px", color="gray"), rx.input(type="date", value=State.fecha_hasta, on_change=State.set_fecha_hasta), spacing="1"),
-                    spacing="4",
-                )),
-            rx.cond(State.tipo_asistencia == "VACACIONES",
-                rx.hstack(
-                    rx.vstack(rx.text("Desde", font_size="12px", color="gray"), rx.input(type="date", value=State.fecha_desde, on_change=State.set_fecha_desde), spacing="1"),
-                    rx.vstack(rx.text("Hasta", font_size="12px", color="gray"), rx.input(type="date", value=State.fecha_hasta, on_change=State.set_fecha_hasta), spacing="1"),
-                    spacing="4",
-                )),
-            rx.cond(State.error != "", rx.callout(State.error, color="red")),
-            rx.cond(State.exito != "", rx.callout(State.exito, color="green")),
-            rx.button("Guardar jornada", on_click=State.guardar_jornada, color_scheme="blue", size="3"),
-            spacing="4", width="100%", max_width="700px",
-        )
-    )
-
-
-def jornada_row(jornada: dict) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(jornada["fecha"]),
-        rx.table.cell(jornada["nombre"]),
-        rx.table.cell(jornada["tipo_asistencia"]),
-        rx.table.cell(rx.cond(jornada["hora_entrada"], jornada["hora_entrada"], "-")),
-        rx.table.cell(rx.cond(jornada["hora_salida"], jornada["hora_salida"], "-")),
-        rx.table.cell(rx.cond(jornada["horas"], jornada["horas"], "-")),
-        rx.table.cell(rx.text(jornada["dif_str"], color=jornada["dif_color"], font_weight="600")),
-        rx.table.cell(jornada["instalaciones"]),
-        rx.table.cell(jornada["desinstalaciones"]),
-        rx.table.cell(jornada["revisiones"]),
-        rx.table.cell(rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("jornada", jornada["id"]))),
-    )
-
-
-def page_historial() -> rx.Component:
-    return layout(
-        rx.vstack(
-            rx.heading("Historial de Jornadas", size="6"),
-            rx.divider(),
-            rx.hstack(
-                rx.vstack(rx.text("Técnico", font_size="12px", color="gray"), rx.select(State.nombres_empleados, placeholder="Todos", value=State.filtro_empleado, on_change=State.set_filtro_empleado, width="160px"), spacing="1"),
-                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.filtro_mes, on_change=State.set_filtro_mes, width="100px"), spacing="1"),
-                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.filtro_anio, on_change=State.set_filtro_anio, width="100px"), spacing="1"),
-                rx.button("Buscar", on_click=State.cargar_historial, color_scheme="blue"),
-                spacing="4", align="end",
-            ),
-            rx.table.root(
-                rx.table.header(rx.table.row(
-                    rx.table.column_header_cell("Fecha"),
-                    rx.table.column_header_cell("Técnico"),
-                    rx.table.column_header_cell("Tipo"),
-                    rx.table.column_header_cell("Entrada"),
-                    rx.table.column_header_cell("Salida"),
-                    rx.table.column_header_cell("Hs trabajadas"),
-                    rx.table.column_header_cell("Diferencia"),
-                    rx.table.column_header_cell("Inst."),
-                    rx.table.column_header_cell("Desins."),
-                    rx.table.column_header_cell("Rev."),
-                    rx.table.column_header_cell(""),
-                )),
-                rx.table.body(rx.foreach(State.jornadas, jornada_row)),
-                width="100%",
-            ),
-            spacing="4", width="100%",
-            on_mount=State.cargar_historial,
-        )
-    )
-
-
-def empleado_row(emp: dict) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(emp["nombre"]),
-        rx.table.cell(rx.cond(emp["telefono"], emp["telefono"], "-")),
-        rx.table.cell(rx.cond(emp["vehiculo"], emp["vehiculo"], "-")),
-        rx.table.cell(rx.cond(emp["patente"], emp["patente"], "-")),
-        rx.table.cell(rx.button("🗑", size="1", color_scheme="red", on_click=State.desactivar_empleado(emp["id"]))),
-    )
-
-
-def page_tecnicos() -> rx.Component:
-    return layout(
-        rx.vstack(
-            rx.heading("Técnicos", size="6"),
-            rx.divider(),
-            rx.hstack(
-                rx.input(placeholder="Nombre del técnico", value=State.nuevo_empleado, on_change=State.set_nuevo_empleado, width="250px"),
-                rx.button("Agregar", on_click=State.agregar_empleado, color_scheme="blue"),
-                spacing="3", align="center",
-            ),
-            rx.table.root(
-                rx.table.header(rx.table.row(
-                    rx.table.column_header_cell("Nombre"),
-                    rx.table.column_header_cell("Teléfono"),
-                    rx.table.column_header_cell("Vehículo"),
-                    rx.table.column_header_cell("Patente"),
-                    rx.table.column_header_cell(""),
-                )),
-                rx.table.body(rx.foreach(State.empleados, empleado_row)),
-                width="100%",
-            ),
-            spacing="4", width="100%",
-            on_mount=State.cargar_empleados,
-        )
-    )
-
-
-def stats_resumen_row(r: dict) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(r["nombre"]),
-        rx.table.cell(r["dias"]),
-        rx.table.cell(f"{r['horas_total']}h"),
-        rx.table.cell(rx.text(r["extras_str"], color="green", font_weight="600")),
-        rx.table.cell(rx.text(r["debe_str"], color="red", font_weight="600")),
-        rx.table.cell(r["instalaciones"]),
-        rx.table.cell(r["desinstalaciones"]),
-        rx.table.cell(r["revisiones"]),
-        rx.table.cell(r["ausencias"]),
-    )
-
-
-def page_estadisticas() -> rx.Component:
-    return layout(
-        rx.vstack(
-            rx.heading("Estadísticas", size="6"),
-            rx.divider(),
-            rx.hstack(
-                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Seleccionar", value=State.stats_mes, on_change=State.set_stats_mes, width="130px"), spacing="1"),
-                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.stats_anio, on_change=State.set_stats_anio, width="100px"), spacing="1"),
-                rx.button("Calcular", on_click=State.cargar_estadisticas, color_scheme="blue"),
-                spacing="4", align="end",
-            ),
-            rx.text("Resumen por técnico", font_size="14px", font_weight="700", color="#1e3a8a"),
-            rx.table.root(
-                rx.table.header(rx.table.row(
-                    rx.table.column_header_cell("Técnico"),
-                    rx.table.column_header_cell("Días trabajados"),
-                    rx.table.column_header_cell("Hs totales"),
-                    rx.table.column_header_cell("Extras"),
-                    rx.table.column_header_cell("Debe"),
-                    rx.table.column_header_cell("Inst."),
-                    rx.table.column_header_cell("Desins."),
-                    rx.table.column_header_cell("Rev."),
-                    rx.table.column_header_cell("Ausencias"),
-                )),
-                rx.table.body(rx.foreach(State.stats_resumen, stats_resumen_row)),
-                width="100%",
-            ),
-            rx.text("Horas trabajadas por día", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="16px"),
-            rx.recharts.bar_chart(
-                rx.recharts.bar(data_key="horas", fill="#1e3a8a", name="Horas"),
-                rx.recharts.reference_line(y=8, stroke="red", stroke_dasharray="3 3", label="8h"),
-                rx.recharts.x_axis(data_key="dia"),
-                rx.recharts.y_axis(),
-                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                rx.recharts.graphing_tooltip(),
-                data=State.stats_barras_horas,
-                width="100%", height=300,
-            ),
-            rx.text("Productividad del período", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="16px"),
-            rx.recharts.bar_chart(
-                rx.recharts.bar(data_key="cantidad", fill="#0f766e", name="Cantidad"),
-                rx.recharts.x_axis(data_key="tipo"),
-                rx.recharts.y_axis(),
-                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                rx.recharts.graphing_tooltip(),
-                data=State.stats_barras_prod,
-                width="100%", height=250,
-            ),
-            spacing="4", width="100%",
-        )
-    )
-
+# ─── STOCK PAGES ─────────────────────────────────────────────────────────────
 
 def stock_row(item: dict) -> rx.Component:
     return rx.table.row(
@@ -1276,6 +1115,8 @@ def page_stock_productos() -> rx.Component:
     )
 
 
+# ─── PROVEEDORES PAGE ────────────────────────────────────────────────────────
+
 def proveedor_row(prov: dict) -> rx.Component:
     return rx.table.row(
         rx.table.cell(prov["nombre"]),
@@ -1333,6 +1174,8 @@ def page_proveedores() -> rx.Component:
         )
     )
 
+
+# ─── TERCEROS PAGES ──────────────────────────────────────────────────────────
 
 def tercero_row(terc: dict) -> rx.Component:
     return rx.table.row(
@@ -1424,82 +1267,251 @@ def page_terceros_stock() -> rx.Component:
     )
 
 
-def servicio_row(serv: dict) -> rx.Component:
+# ─── SERVICIOS: CARGA DEL DÍA ────────────────────────────────────────────────
+
+def servicio_en_lista_row(s: dict) -> rx.Component:
     return rx.table.row(
-        rx.table.cell(serv["fecha"]),
-        rx.table.cell(serv["cliente"]),
-        rx.table.cell(serv["tipo_servicio"]),
-        rx.table.cell(rx.cond(serv["tipo_unidad"], serv["tipo_unidad"], rx.cond(serv["alcance"], serv["alcance"], "-"))),
-        rx.table.cell(rx.cond(serv["patente"], serv["patente"], "-")),
-        rx.table.cell(rx.cond(serv["responsable"], serv["responsable"], "-")),
-        rx.table.cell(rx.text(serv["estado"], color=serv["estado_color"], font_weight="600")),
-        rx.table.cell(rx.hstack(
-            rx.button("✏️", size="1", color_scheme="blue",
-                on_click=State.iniciar_edit_servicio(
-                    serv["id"], serv["fecha"], serv["cliente"], serv["es_serenisima"],
-                    serv["tipo_servicio"], serv["tipo_unidad"], serv["alcance"],
-                    serv["patente"], serv["responsable"], serv["estado"], serv["observaciones"]
-                )),
-            rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("servicio", serv["id"])),
-            spacing="2",
-        )),
+        rx.table.cell(s["cliente"]),
+        rx.table.cell(s["tipo_servicio"]),
+        rx.table.cell(s["dispositivo"]),
+        rx.table.cell(rx.cond(s["patente"], s["patente"], "-")),
+        rx.table.cell(rx.cond(s["hora"], s["hora"], "-")),
+        rx.table.cell(s["estado"]),
+        rx.table.cell(rx.button("✕", size="1", color_scheme="red", on_click=State.quitar_servicio_de_lista(s["temp_id"]))),
     )
 
 
-def page_serv_cargar() -> rx.Component:
+def tecnico_presencia_row(t: dict) -> rx.Component:
+    return rx.hstack(
+        rx.checkbox(
+            checked=t["presente"],
+            on_change=lambda _: State.toggle_tecnico_presencia(t["tecnico_id"]),
+        ),
+        rx.text(t["nombre"], font_size="13px"),
+        rx.cond(
+            ~t["presente"],
+            rx.select(
+                ["Licencia", "Vacaciones", "Enfermedad", "Otro"],
+                placeholder="Motivo",
+                value=t["motivo_ausencia"],
+                on_change=lambda v: State.set_motivo_ausencia(t["tecnico_id"], v),
+                width="160px",
+            ),
+        ),
+        spacing="3", align="center",
+    )
+
+
+def page_carga_dia() -> rx.Component:
     return layout(
         rx.vstack(
-            rx.heading(rx.cond(State.serv_edit_id != "", "Editar Servicio", "Cargar Servicio"), size="6"),
+            rx.heading("Carga del Día", size="6"),
             rx.divider(),
+
+            # Header: fecha + equipo
             rx.hstack(
-                rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.serv_fecha, on_change=State.set_serv_fecha, width="160px"), spacing="1"),
-                rx.vstack(rx.text("Cliente", font_size="12px", color="gray"), rx.select(["LA SERENISIMA", "OTRO"], placeholder="Seleccionar", value=State.serv_cliente_tipo, on_change=State.set_serv_cliente_tipo, width="200px"), spacing="1"),
-                rx.vstack(rx.text("Tipo de servicio", font_size="12px", color="gray"), rx.select(["INSTALACION", "DESINSTALACION", "REVISION"], value=State.serv_tipo, on_change=State.set_serv_tipo, width="180px"), spacing="1"),
-                spacing="4", wrap="wrap",
+                rx.vstack(rx.text("Fecha", font_size="12px", font_weight="600", color="gray"), rx.input(type="date", value=State.carga_fecha, on_change=State.set_carga_fecha, width="180px"), spacing="1"),
+                rx.vstack(rx.text("Equipo", font_size="12px", font_weight="600", color="gray"), rx.select(State.equipos_nombres, placeholder="Seleccionar equipo", value=State.carga_equipo_nombre, on_change=State.set_carga_equipo, width="200px"), spacing="1"),
+                spacing="4", align="end",
             ),
+
+            # Sección agregar servicio
+            rx.box(
+                rx.vstack(
+                    rx.text("Agregar servicio", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.hstack(
+                        rx.vstack(rx.text("Cliente", font_size="12px", color="gray"), rx.select(State.dir_clientes_nombres, placeholder="Seleccionar cliente", value=State.carga_cliente_sel, on_change=State.set_carga_cliente_sel, width="200px"), spacing="1"),
+                        rx.vstack(rx.text("Ref cliente", font_size="12px", color="gray"), rx.input(placeholder="Referencia interna", value=State.carga_cliente_ref, on_change=State.set_carga_cliente_ref, width="160px"), spacing="1"),
+                        rx.vstack(rx.text("Hora", font_size="12px", color="gray"), rx.input(type="time", value=State.carga_hora, on_change=State.set_carga_hora, width="120px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.hstack(
+                        rx.vstack(rx.text("Tipo", font_size="12px", color="gray"), rx.select(["INSTALACION", "REVISION", "DESINSTALACION"], value=State.carga_tipo, on_change=State.set_carga_tipo, width="160px"), spacing="1"),
+                        rx.vstack(rx.text("Dispositivo", font_size="12px", color="gray"), rx.select(["GPS", "LECTORA", "GPS y LECTORA"], value=State.carga_dispositivo, on_change=State.set_carga_dispositivo, width="160px"), spacing="1"),
+                        rx.vstack(rx.text("Patente", font_size="12px", color="gray"), rx.input(value=State.carga_patente, on_change=State.set_carga_patente, width="140px"), spacing="1"),
+                        rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO"], value=State.carga_estado, on_change=State.set_carga_estado, width="150px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.input(value=State.carga_obs_serv, on_change=State.set_carga_obs_serv, width="500px"), spacing="1"),
+                    rx.cond(State.carga_error != "", rx.callout(State.carga_error, color="red")),
+                    rx.button("+ Agregar servicio a lista", on_click=State.agregar_servicio_a_lista, color_scheme="blue"),
+                    spacing="3",
+                ),
+                padding="16px", border="1px solid #bfdbfe", border_radius="8px", background="white", width="100%",
+            ),
+
+            # Lista servicios preparados
             rx.cond(
-                State.serv_cliente_tipo == "OTRO",
-                rx.vstack(rx.text("Nombre del cliente", font_size="12px", color="gray"), rx.input(placeholder="Ingresá el nombre", value=State.serv_cliente_otro, on_change=State.set_serv_cliente_otro, width="300px"), spacing="1"),
+                State.carga_servicios,
+                rx.vstack(
+                    rx.text("Servicios a guardar", font_size="13px", font_weight="600", color="#374151"),
+                    rx.table.root(
+                        rx.table.header(rx.table.row(
+                            rx.table.column_header_cell("Cliente"),
+                            rx.table.column_header_cell("Tipo"),
+                            rx.table.column_header_cell("Dispositivo"),
+                            rx.table.column_header_cell("Patente"),
+                            rx.table.column_header_cell("Hora"),
+                            rx.table.column_header_cell("Estado"),
+                            rx.table.column_header_cell(""),
+                        )),
+                        rx.table.body(rx.foreach(State.carga_servicios, servicio_en_lista_row)),
+                        width="100%",
+                    ),
+                    spacing="2", width="100%",
+                ),
             ),
+
+            # Movimiento camioneta
+            rx.box(
+                rx.vstack(
+                    rx.text("Movimiento de camioneta", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.hstack(
+                        rx.vstack(rx.text("Punto inicio", font_size="12px", color="gray"), rx.select(["Oficina", "Casa Maxi", "Casa Lautaro", "Casa Hugo", "Casa Sergio", "Otro"], placeholder="Seleccionar", value=State.carga_punto_inicio, on_change=State.set_carga_punto_inicio, width="180px"), spacing="1"),
+                        rx.vstack(rx.text("Hora salida", font_size="12px", color="gray"), rx.input(type="time", value=State.carga_hora_salida, on_change=State.set_carga_hora_salida, width="120px"), spacing="1"),
+                        rx.vstack(rx.text("Punto fin", font_size="12px", color="gray"), rx.select(["Oficina", "Casa Maxi", "Casa Lautaro", "Casa Hugo", "Casa Sergio", "Otro"], placeholder="Seleccionar", value=State.carga_punto_fin, on_change=State.set_carga_punto_fin, width="180px"), spacing="1"),
+                        rx.vstack(rx.text("Hora llegada", font_size="12px", color="gray"), rx.input(type="time", value=State.carga_hora_llegada, on_change=State.set_carga_hora_llegada, width="120px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.input(value=State.carga_obs_mov, on_change=State.set_carga_obs_mov, width="500px"), spacing="1"),
+                    spacing="3",
+                ),
+                padding="16px", border="1px solid #d1fae5", border_radius="8px", background="white", width="100%",
+            ),
+
+            # Técnicos presentes
             rx.cond(
-                State.serv_es_serenisima,
-                rx.vstack(rx.text("Tipo de unidad", font_size="12px", color="gray"), rx.select(["CHASIS", "SEMI", "TRACTOR"], placeholder="Seleccionar", value=State.serv_tipo_unidad, on_change=State.set_serv_tipo_unidad, width="200px"), spacing="1"),
-                rx.vstack(rx.text("Alcance", font_size="12px", color="gray"), rx.select(["GPS", "LECTORA", "GPS Y LECTORA"], placeholder="Seleccionar", value=State.serv_alcance, on_change=State.set_serv_alcance, width="200px"), spacing="1"),
+                State.carga_tecnicos_presencia,
+                rx.box(
+                    rx.vstack(
+                        rx.text("Técnicos presentes", font_size="14px", font_weight="700", color="#1e3a8a"),
+                        rx.foreach(State.carga_tecnicos_presencia, tecnico_presencia_row),
+                        spacing="2",
+                    ),
+                    padding="16px", border="1px solid #fde68a", border_radius="8px", background="white", width="100%",
+                ),
             ),
-            rx.hstack(
-                rx.vstack(rx.text("Patente / Dominio", font_size="12px", color="gray"), rx.input(value=State.serv_patente, on_change=State.set_serv_patente, width="160px"), spacing="1"),
-                rx.vstack(rx.text("Responsable", font_size="12px", color="gray"), rx.select(State.responsables_opciones, placeholder="Seleccionar", value=State.serv_responsable_tipo, on_change=State.set_serv_responsable_tipo, width="220px"), spacing="1"),
-                rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO", "SUSPENDIDO", "REPROGRAMADO"], value=State.serv_estado, on_change=State.set_serv_estado, width="180px"), spacing="1"),
-                spacing="4", wrap="wrap",
-            ),
-            rx.cond(
-                (State.serv_responsable_tipo == "EQUIPO 1") | (State.serv_responsable_tipo == "EQUIPO 2"),
-                rx.vstack(rx.text("Técnicos del equipo", font_size="12px", color="gray"), rx.input(placeholder="Ej: Maxi, Lautaro", value=State.serv_tecnicos, on_change=State.set_serv_tecnicos, width="300px"), spacing="1"),
-            ),
-            rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.serv_observaciones, on_change=State.set_serv_observaciones, width="500px", rows="3"), spacing="1"),
-            rx.cond(State.serv_error != "", rx.callout(State.serv_error, color="red")),
-            rx.cond(State.serv_exito != "", rx.callout(State.serv_exito, color="green")),
-            rx.hstack(
-                rx.button(rx.cond(State.serv_edit_id != "", "Guardar cambios", "Guardar servicio"), on_click=State.guardar_servicio, color_scheme="blue", size="3"),
-                rx.cond(State.serv_edit_id != "", rx.button("Cancelar", on_click=State.reset_servicio, color_scheme="gray", size="3")),
-                spacing="3",
-            ),
-            spacing="4", width="100%", max_width="700px",
-            on_mount=State.cargar_terceros,
+
+            rx.cond(State.carga_exito != "", rx.callout(State.carga_exito, color="green")),
+            rx.button("Guardar todo", on_click=State.guardar_carga_dia, color_scheme="green", size="3"),
+            spacing="4", width="100%",
+            on_mount=[State.cargar_equipos, State.cargar_directorio_clientes, State.cargar_directorio_personal],
         )
     )
 
 
-def page_serv_lista() -> rx.Component:
+# ─── SERVICIOS: VISTA DEL DÍA ─────────────────────────────────────────────────
+
+def vista_servicio_row(s: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(rx.cond(s["hora_programada"], s["hora_programada"], "-")),
+        rx.table.cell(s["cliente"]),
+        rx.table.cell(s["tipo_servicio"]),
+        rx.table.cell(rx.cond(s["dispositivo"], s["dispositivo"], "-")),
+        rx.table.cell(rx.cond(s["patente"], s["patente"], "-")),
+        rx.table.cell(rx.text(s["estado"], color=s["estado_color"], font_weight="600")),
+    )
+
+
+def page_vista_dia() -> rx.Component:
     return layout(
         rx.vstack(
-            rx.heading("Lista de Servicios", size="6"),
+            rx.heading("Vista del Día", size="6"),
             rx.divider(),
             rx.hstack(
-                rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO", "SUSPENDIDO", "REPROGRAMADO"], placeholder="Todos", value=State.serv_filtro_estado, on_change=State.set_serv_filtro_estado, width="180px"), spacing="1"),
-                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.serv_filtro_mes, on_change=State.set_serv_filtro_mes, width="100px"), spacing="1"),
-                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.serv_filtro_anio, on_change=State.set_serv_filtro_anio, width="100px"), spacing="1"),
-                rx.button("Buscar", on_click=State.cargar_servicios, color_scheme="blue"),
+                rx.vstack(rx.text("Fecha", font_size="12px", color="gray"), rx.input(type="date", value=State.vista_fecha, on_change=State.set_vista_fecha, width="180px"), spacing="1"),
+                rx.button("Buscar", on_click=State.cargar_vista_dia, color_scheme="blue"),
+                spacing="4", align="end",
+            ),
+            rx.hstack(
+                # Equipo 1
+                rx.vstack(
+                    rx.text("Equipo 1", font_size="14px", font_weight="700", color="#1e3a8a"),
+                    rx.cond(
+                        State.vista_mov_equipo1,
+                        rx.box(
+                            rx.text(f"Salida: {State.vista_mov_equipo1['hora_salida']} — Llegada: {State.vista_mov_equipo1['hora_llegada']}", font_size="12px", color="gray"),
+                            padding="8px", background="#eff6ff", border_radius="6px",
+                        ),
+                    ),
+                    rx.table.root(
+                        rx.table.header(rx.table.row(
+                            rx.table.column_header_cell("Hora"),
+                            rx.table.column_header_cell("Cliente"),
+                            rx.table.column_header_cell("Tipo"),
+                            rx.table.column_header_cell("Dispositivo"),
+                            rx.table.column_header_cell("Patente"),
+                            rx.table.column_header_cell("Estado"),
+                        )),
+                        rx.table.body(rx.foreach(State.vista_servicios_equipo1, vista_servicio_row)),
+                        width="100%",
+                    ),
+                    spacing="2", width="50%",
+                ),
+                # Equipo 2
+                rx.vstack(
+                    rx.text("Equipo 2", font_size="14px", font_weight="700", color="#0f766e"),
+                    rx.cond(
+                        State.vista_mov_equipo2,
+                        rx.box(
+                            rx.text(f"Salida: {State.vista_mov_equipo2['hora_salida']} — Llegada: {State.vista_mov_equipo2['hora_llegada']}", font_size="12px", color="gray"),
+                            padding="8px", background="#f0fdf4", border_radius="6px",
+                        ),
+                    ),
+                    rx.table.root(
+                        rx.table.header(rx.table.row(
+                            rx.table.column_header_cell("Hora"),
+                            rx.table.column_header_cell("Cliente"),
+                            rx.table.column_header_cell("Tipo"),
+                            rx.table.column_header_cell("Dispositivo"),
+                            rx.table.column_header_cell("Patente"),
+                            rx.table.column_header_cell("Estado"),
+                        )),
+                        rx.table.body(rx.foreach(State.vista_servicios_equipo2, vista_servicio_row)),
+                        width="100%",
+                    ),
+                    spacing="2", width="50%",
+                ),
+                spacing="6", width="100%", align="start",
+            ),
+            spacing="4", width="100%",
+            on_mount=State.cargar_equipos,
+        )
+    )
+
+
+# ─── SERVICIOS: HISTORIAL ────────────────────────────────────────────────────
+
+def hist_servicio_row(s: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(s["fecha"]),
+        rx.table.cell(s["cliente"]),
+        rx.table.cell(s["tipo_servicio"]),
+        rx.table.cell(rx.cond(s["dispositivo"], s["dispositivo"], "-")),
+        rx.table.cell(rx.cond(s["patente"], s["patente"], "-")),
+        rx.table.cell(rx.cond(s["equipo_id"], s["equipo_id"], "-")),
+        rx.table.cell(
+            rx.select(
+                ["PENDIENTE", "CONFIRMADO", "REALIZADO"],
+                value=s["estado"],
+                on_change=lambda v: State.actualizar_estado_servicio(s["id"], v),
+                width="140px",
+            )
+        ),
+        rx.table.cell(rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("servicio_hist", s["id"]))),
+    )
+
+
+def page_historial_svc() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Historial de Servicios", size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.vstack(rx.text("Estado", font_size="12px", color="gray"), rx.select(["PENDIENTE", "CONFIRMADO", "REALIZADO"], placeholder="Todos", value=State.hist_filtro_estado, on_change=State.set_hist_filtro_estado, width="160px"), spacing="1"),
+                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.hist_filtro_mes, on_change=State.set_hist_filtro_mes, width="100px"), spacing="1"),
+                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.hist_filtro_anio, on_change=State.set_hist_filtro_anio, width="100px"), spacing="1"),
+                rx.button("Buscar", on_click=State.cargar_historial_svc, color_scheme="blue"),
                 spacing="4", align="end",
             ),
             rx.table.root(
@@ -1507,209 +1519,330 @@ def page_serv_lista() -> rx.Component:
                     rx.table.column_header_cell("Fecha"),
                     rx.table.column_header_cell("Cliente"),
                     rx.table.column_header_cell("Tipo"),
-                    rx.table.column_header_cell("Unidad/Alcance"),
+                    rx.table.column_header_cell("Dispositivo"),
                     rx.table.column_header_cell("Patente"),
-                    rx.table.column_header_cell("Responsable"),
+                    rx.table.column_header_cell("Equipo"),
                     rx.table.column_header_cell("Estado"),
                     rx.table.column_header_cell(""),
                 )),
-                rx.table.body(rx.foreach(State.servicios, servicio_row)),
+                rx.table.body(rx.foreach(State.hist_servicios, hist_servicio_row)),
                 width="100%",
             ),
             spacing="4", width="100%",
-            on_mount=State.cargar_servicios,
+            on_mount=[State.cargar_historial_svc, State.cargar_equipos],
         )
     )
 
 
-def rep_jornada_row(r: dict) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(r["nombre"]),
-        rx.table.cell(r["dias_trabajados"]),
-        rx.table.cell(f"{r['horas_total']}h"),
-        rx.table.cell(r["instalaciones"]),
-        rx.table.cell(r["desinstalaciones"]),
-        rx.table.cell(r["revisiones"]),
-    )
+# ─── DIRECTORIO: CARGA ───────────────────────────────────────────────────────
 
-
-def rep_estado_row(r: dict) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(r["estado"]),
-        rx.table.cell(r["cantidad"]),
-    )
-
-
-def rep_tipo_row(r: dict) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(r["tipo"]),
-        rx.table.cell(r["cantidad"]),
-    )
-
-
-def rep_cliente_row(r: dict) -> rx.Component:
-    return rx.table.row(
-        rx.table.cell(r["cliente"]),
-        rx.table.cell(r["cantidad"]),
-    )
-
-
-def page_reporte_cruzado() -> rx.Component:
+def page_dir_carga() -> rx.Component:
     return layout(
         rx.vstack(
-            rx.heading("Reporte Horarios vs Servicios", size="6"),
+            rx.heading("Directorio — Carga", size="6"),
             rx.divider(),
             rx.hstack(
-                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.rep_mes, on_change=State.set_rep_mes, width="130px"), spacing="1"),
-                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.rep_anio, on_change=State.set_rep_anio, width="100px"), spacing="1"),
-                rx.button("Generar reporte", on_click=State.cargar_reporte, color_scheme="red"),
+                rx.button("Técnico / Interno", on_click=State.set_dir_tipo("interno"), color_scheme=rx.cond(State.dir_tipo == "interno", "blue", "gray"), variant=rx.cond(State.dir_tipo == "interno", "solid", "soft")),
+                rx.button("Contacto exterior", on_click=State.set_dir_tipo("interior"), color_scheme=rx.cond(State.dir_tipo == "interior", "blue", "gray"), variant=rx.cond(State.dir_tipo == "interior", "solid", "soft")),
+                rx.button("Cliente", on_click=State.set_dir_tipo("cliente"), color_scheme=rx.cond(State.dir_tipo == "cliente", "blue", "gray"), variant=rx.cond(State.dir_tipo == "cliente", "solid", "soft")),
+                spacing="3",
+            ),
+            rx.cond(
+                State.dir_tipo == "cliente",
+                # Formulario cliente
+                rx.vstack(
+                    rx.hstack(
+                        rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.dir_nombre, on_change=State.set_dir_nombre, width="220px"), spacing="1"),
+                        rx.vstack(rx.text("Contacto", font_size="12px", color="gray"), rx.input(value=State.dir_contacto, on_change=State.set_dir_contacto, width="180px"), spacing="1"),
+                        rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.dir_telefono, on_change=State.set_dir_telefono, width="160px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.dir_email, on_change=State.set_dir_email, width="300px"), spacing="1"),
+                    rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.dir_observaciones, on_change=State.set_dir_observaciones, width="500px", rows="2"), spacing="1"),
+                    rx.cond(State.dir_error != "", rx.callout(State.dir_error, color="red")),
+                    rx.cond(State.dir_exito != "", rx.callout(State.dir_exito, color="green")),
+                    rx.button("Guardar cliente", on_click=State.guardar_cliente, color_scheme="blue", size="3"),
+                    spacing="3",
+                ),
+                # Formulario personal/contacto
+                rx.vstack(
+                    rx.hstack(
+                        rx.vstack(rx.text("Nombre", font_size="12px", color="gray"), rx.input(value=State.dir_nombre, on_change=State.set_dir_nombre, width="220px"), spacing="1"),
+                        rx.cond(
+                            State.dir_tipo == "interno",
+                            rx.vstack(rx.text("Equipo", font_size="12px", color="gray"), rx.select(State.equipos_nombres, placeholder="Seleccionar equipo", value=State.dir_equipo_id, on_change=State.set_dir_equipo_id, width="180px"), spacing="1"),
+                            rx.vstack(rx.text("Ciudad / Zona", font_size="12px", color="gray"), rx.input(value=State.dir_ciudad, on_change=State.set_dir_ciudad, width="180px"), spacing="1"),
+                        ),
+                        rx.vstack(rx.text("Teléfono", font_size="12px", color="gray"), rx.input(value=State.dir_telefono, on_change=State.set_dir_telefono, width="160px"), spacing="1"),
+                        spacing="4", wrap="wrap",
+                    ),
+                    rx.cond(
+                        State.dir_tipo == "interior",
+                        rx.hstack(
+                            rx.vstack(rx.text("Contacto", font_size="12px", color="gray"), rx.input(value=State.dir_contacto, on_change=State.set_dir_contacto, width="200px"), spacing="1"),
+                            rx.vstack(rx.text("Email", font_size="12px", color="gray"), rx.input(value=State.dir_email, on_change=State.set_dir_email, width="240px"), spacing="1"),
+                            spacing="4",
+                        ),
+                    ),
+                    rx.vstack(rx.text("Observaciones", font_size="12px", color="gray"), rx.text_area(value=State.dir_observaciones, on_change=State.set_dir_observaciones, width="500px", rows="2"), spacing="1"),
+                    rx.cond(State.dir_error != "", rx.callout(State.dir_error, color="red")),
+                    rx.cond(State.dir_exito != "", rx.callout(State.dir_exito, color="green")),
+                    rx.button("Guardar", on_click=State.guardar_directorio, color_scheme="blue", size="3"),
+                    spacing="3",
+                ),
+            ),
+            spacing="4", width="100%", max_width="700px",
+            on_mount=[State.cargar_equipos, State.cargar_directorio_personal],
+        )
+    )
+
+
+# ─── DIRECTORIO: PERSONAL ────────────────────────────────────────────────────
+
+def dir_personal_row(t: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(t["nombre"]),
+        rx.table.cell(
+            rx.badge(t["tipo"], color_scheme=rx.cond(t["tipo"] == "interno", "blue", "gray"))
+        ),
+        rx.table.cell(rx.cond(t["equipo_id"], t["equipo_id"], rx.cond(t["ciudad"], t["ciudad"], "-"))),
+        rx.table.cell(rx.cond(t["telefono"], t["telefono"], "-")),
+        rx.table.cell(rx.cond(t["observaciones"], t["observaciones"], "-")),
+        rx.table.cell(rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("dir_personal", t["id"]))),
+    )
+
+
+def page_dir_personal() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Personal y Contactos", size="6"),
+            rx.divider(),
+            rx.table.root(
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Nombre"),
+                    rx.table.column_header_cell("Tipo"),
+                    rx.table.column_header_cell("Equipo / Zona"),
+                    rx.table.column_header_cell("Teléfono"),
+                    rx.table.column_header_cell("Observaciones"),
+                    rx.table.column_header_cell(""),
+                )),
+                rx.table.body(rx.foreach(State.dir_personal, dir_personal_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+            on_mount=[State.cargar_directorio_personal, State.cargar_equipos],
+        )
+    )
+
+
+# ─── DIRECTORIO: CLIENTES ────────────────────────────────────────────────────
+
+def dir_cliente_row(c: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(c["nombre"]),
+        rx.table.cell(rx.cond(c["ciudad"], c["ciudad"], "-")),
+        rx.table.cell(rx.cond(c["telefono"], c["telefono"], "-")),
+        rx.table.cell(rx.cond(c["email"], c["email"], "-")),
+        rx.table.cell(rx.hstack(
+            rx.button("✏️", size="1", color_scheme="blue",
+                on_click=State.iniciar_edit_cliente_dir(c["id"], c["nombre"], c["ciudad"], c["telefono"], c["email"], c["observaciones"])),
+            rx.button("🗑", size="1", color_scheme="red", on_click=State.iniciar_confirm("dir_cliente", c["id"])),
+            spacing="2",
+        )),
+    )
+
+
+def page_dir_clientes() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Clientes", size="6"),
+            rx.divider(),
+            rx.button("+ Agregar cliente", on_click=[State.set_dir_tipo("cliente"), State.set_pagina("dir_carga")], color_scheme="blue"),
+            rx.cond(State.dir_exito != "", rx.callout(State.dir_exito, color="green")),
+            rx.table.root(
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Nombre"),
+                    rx.table.column_header_cell("Ciudad"),
+                    rx.table.column_header_cell("Teléfono"),
+                    rx.table.column_header_cell("Email"),
+                    rx.table.column_header_cell(""),
+                )),
+                rx.table.body(rx.foreach(State.dir_clientes_list, dir_cliente_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+            on_mount=State.cargar_directorio_clientes,
+        )
+    )
+
+
+# ─── DIRECTORIO: PROVEEDORES (alias) ─────────────────────────────────────────
+
+def page_dir_proveedores() -> rx.Component:
+    return page_proveedores()
+
+
+# ─── ESTADÍSTICAS: HORAS ─────────────────────────────────────────────────────
+
+def stats_horas_row(t: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(t["nombre"]),
+        rx.table.cell(rx.cond(t["equipo"], t["equipo"], "-")),
+        rx.table.cell(t["dias_presentes"]),
+        rx.table.cell(t["horas_str"]),
+        rx.table.cell(rx.text(t["diferencia_str"], color=t["diferencia_color"], font_weight="600")),
+    )
+
+
+def page_stats_horas() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Horas Trabajadas", size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Seleccionar", value=State.stats2_mes, on_change=State.set_stats2_mes, width="130px"), spacing="1"),
+                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.stats2_anio, on_change=State.set_stats2_anio, width="100px"), spacing="1"),
+                rx.button("Calcular", on_click=State.cargar_stats_horas, color_scheme="blue"),
                 spacing="4", align="end",
             ),
-
-            # Resumen técnicos
-            rx.text("Actividad por técnico", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
             rx.table.root(
                 rx.table.header(rx.table.row(
                     rx.table.column_header_cell("Técnico"),
-                    rx.table.column_header_cell("Días trabajados"),
-                    rx.table.column_header_cell("Horas totales"),
-                    rx.table.column_header_cell("Instalaciones"),
-                    rx.table.column_header_cell("Desinstalaciones"),
-                    rx.table.column_header_cell("Revisiones"),
+                    rx.table.column_header_cell("Equipo"),
+                    rx.table.column_header_cell("Días presentes"),
+                    rx.table.column_header_cell("Horas trabajadas"),
+                    rx.table.column_header_cell("Balance"),
                 )),
-                rx.table.body(rx.foreach(State.rep_jornadas, rep_jornada_row)),
+                rx.table.body(rx.foreach(State.stats2_tecnicos, stats_horas_row)),
                 width="100%",
             ),
-
-            # KPIs globales
-            rx.text("Resumen del período", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
-            rx.hstack(
-                rx.box(rx.vstack(rx.text("Días trabajados", font_size="12px", color="gray"), rx.text(State.rep_total_dias, font_size="28px", font_weight="700", color="#1e3a8a"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
-                rx.box(rx.vstack(rx.text("Horas totales", font_size="12px", color="gray"), rx.text(State.rep_total_horas, font_size="28px", font_weight="700", color="#0f766e"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
-                rx.box(rx.vstack(rx.text("Instalaciones", font_size="12px", color="gray"), rx.text(State.rep_total_instalaciones, font_size="28px", font_weight="700", color="#b45309"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
-                rx.box(rx.vstack(rx.text("Desinstalaciones", font_size="12px", color="gray"), rx.text(State.rep_total_desinstalaciones, font_size="28px", font_weight="700", color="#7c3aed"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
-                rx.box(rx.vstack(rx.text("Revisiones", font_size="12px", color="gray"), rx.text(State.rep_total_revisiones, font_size="28px", font_weight="700", color="#be123c"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
-                rx.box(rx.vstack(rx.text("Total servicios", font_size="12px", color="gray"), rx.text(State.rep_servicios_total, font_size="28px", font_weight="700", color="#374151"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
-                spacing="4", wrap="wrap",
-            ),
-
-            # Gráficos por técnico
-            rx.text("Días trabajados por técnico", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="16px"),
-            rx.recharts.bar_chart(
-                rx.recharts.bar(data_key="dias_trabajados", fill="#1e3a8a", name="Días"),
-                rx.recharts.x_axis(data_key="nombre"),
-                rx.recharts.y_axis(),
-                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                rx.recharts.graphing_tooltip(),
-                data=State.rep_jornadas,
-                width="100%", height=240,
-            ),
-
-            rx.text("Horas totales por técnico", font_size="14px", font_weight="700", color="#0f766e", margin_top="8px"),
-            rx.recharts.bar_chart(
-                rx.recharts.bar(data_key="horas_total", fill="#0f766e", name="Horas"),
-                rx.recharts.x_axis(data_key="nombre"),
-                rx.recharts.y_axis(),
-                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                rx.recharts.graphing_tooltip(),
-                data=State.rep_jornadas,
-                width="100%", height=240,
-            ),
-
-            rx.text("Productividad por técnico (instalaciones / desinstalaciones / revisiones)", font_size="14px", font_weight="700", color="#b45309", margin_top="8px"),
-            rx.recharts.bar_chart(
-                rx.recharts.bar(data_key="instalaciones", fill="#b45309", name="Instalaciones"),
-                rx.recharts.bar(data_key="desinstalaciones", fill="#7c3aed", name="Desinstalaciones"),
-                rx.recharts.bar(data_key="revisiones", fill="#be123c", name="Revisiones"),
-                rx.recharts.x_axis(data_key="nombre"),
-                rx.recharts.y_axis(),
-                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                rx.recharts.graphing_tooltip(),
-                rx.recharts.legend(),
-                data=State.rep_jornadas,
-                width="100%", height=260,
-            ),
-
-            # Servicios resumen
-            rx.text("Servicios del período", font_size="14px", font_weight="700", color="#1e3a8a", margin_top="8px"),
-            rx.hstack(
-                rx.vstack(
-                    rx.text("Por estado", font_size="13px", font_weight="700", color="#1e3a8a"),
-                    rx.table.root(
-                        rx.table.header(rx.table.row(rx.table.column_header_cell("Estado"), rx.table.column_header_cell("Cant."))),
-                        rx.table.body(rx.foreach(State.rep_por_estado, rep_estado_row)),
-                    ),
-                    spacing="2",
-                ),
-                rx.vstack(
-                    rx.text("Por tipo", font_size="13px", font_weight="700", color="#1e3a8a"),
-                    rx.table.root(
-                        rx.table.header(rx.table.row(rx.table.column_header_cell("Tipo"), rx.table.column_header_cell("Cant."))),
-                        rx.table.body(rx.foreach(State.rep_por_tipo, rep_tipo_row)),
-                    ),
-                    spacing="2",
-                ),
-                rx.vstack(
-                    rx.text("Por cliente", font_size="13px", font_weight="700", color="#1e3a8a"),
-                    rx.table.root(
-                        rx.table.header(rx.table.row(rx.table.column_header_cell("Cliente"), rx.table.column_header_cell("Cant."))),
-                        rx.table.body(rx.foreach(State.rep_por_cliente, rep_cliente_row)),
-                    ),
-                    spacing="2",
-                ),
-                spacing="8", align="start", wrap="wrap", margin_top="4px",
-            ),
-
-            rx.text("Servicios por tipo", font_size="14px", font_weight="700", color="#be123c", margin_top="16px"),
-            rx.recharts.bar_chart(
-                rx.recharts.bar(data_key="cantidad", fill="#be123c", name="Servicios"),
-                rx.recharts.x_axis(data_key="tipo"),
-                rx.recharts.y_axis(),
-                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                rx.recharts.graphing_tooltip(),
-                data=State.rep_por_tipo,
-                width="100%", height=230,
-            ),
-
-            rx.text("Servicios por cliente", font_size="14px", font_weight="700", color="#7c3aed", margin_top="8px"),
-            rx.recharts.bar_chart(
-                rx.recharts.bar(data_key="cantidad", fill="#7c3aed", name="Servicios"),
-                rx.recharts.x_axis(data_key="cliente"),
-                rx.recharts.y_axis(),
-                rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                rx.recharts.graphing_tooltip(),
-                data=State.rep_por_cliente,
-                width="100%", height=230,
-            ),
-
             spacing="4", width="100%",
         )
     )
 
 
+# ─── ESTADÍSTICAS: CLIENTES ──────────────────────────────────────────────────
+
+def stats_cli_serv_row(s: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(s["fecha"]),
+        rx.table.cell(s["tipo_servicio"]),
+        rx.table.cell(rx.cond(s["dispositivo"], s["dispositivo"], "-")),
+        rx.table.cell(rx.cond(s["patente"], s["patente"], "-")),
+        rx.table.cell(rx.text(s["estado"], color=s["estado_color"], font_weight="600")),
+    )
+
+
+def page_stats_clientes() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Servicios por Cliente", size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.vstack(rx.text("Cliente", font_size="12px", color="gray"), rx.select(State.dir_clientes_nombres, placeholder="Todos", value=State.stats_cli_cliente_id, on_change=State.set_stats_cli_cliente_id, width="200px"), spacing="1"),
+                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Todos", value=State.stats_cli_mes, on_change=State.set_stats_cli_mes, width="100px"), spacing="1"),
+                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.stats_cli_anio, on_change=State.set_stats_cli_anio, width="100px"), spacing="1"),
+                rx.button("Buscar", on_click=State.cargar_stats_clientes, color_scheme="blue"),
+                spacing="4", align="end",
+            ),
+            rx.cond(
+                State.stats_cli_resumen,
+                rx.hstack(
+                    rx.box(rx.vstack(rx.text("Total", font_size="12px", color="gray"), rx.text(State.stats_cli_resumen["total"], font_size="28px", font_weight="700", color="#1e3a8a"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                    rx.box(rx.vstack(rx.text("Instalaciones", font_size="12px", color="gray"), rx.text(State.stats_cli_resumen["instalaciones"], font_size="28px", font_weight="700", color="#0f766e"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                    rx.box(rx.vstack(rx.text("Revisiones", font_size="12px", color="gray"), rx.text(State.stats_cli_resumen["revisiones"], font_size="28px", font_weight="700", color="#b45309"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                    rx.box(rx.vstack(rx.text("Desinstalaciones", font_size="12px", color="gray"), rx.text(State.stats_cli_resumen["desinstalaciones"], font_size="28px", font_weight="700", color="#7c3aed"), spacing="1", align="center"), padding="16px 20px", border="1px solid #e2e6ea", border_radius="12px", background="white"),
+                    spacing="4", wrap="wrap",
+                ),
+            ),
+            rx.table.root(
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Fecha"),
+                    rx.table.column_header_cell("Tipo"),
+                    rx.table.column_header_cell("Dispositivo"),
+                    rx.table.column_header_cell("Patente"),
+                    rx.table.column_header_cell("Estado"),
+                )),
+                rx.table.body(rx.foreach(State.stats_cli_servicios, stats_cli_serv_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+            on_mount=State.cargar_directorio_clientes,
+        )
+    )
+
+
+# ─── ESTADÍSTICAS: REPORTE CRUZADO ───────────────────────────────────────────
+
+def stats_cruzado_row(t: dict) -> rx.Component:
+    return rx.table.row(
+        rx.table.cell(t["nombre"]),
+        rx.table.cell(rx.cond(t["equipo"], t["equipo"], "-")),
+        rx.table.cell(t["dias_presentes"]),
+        rx.table.cell(t["servicios_realizados"]),
+        rx.table.cell(t["servicios_por_dia"]),
+        rx.table.cell(t["horas_str"]),
+        rx.table.cell(rx.text(t["balance_str"], color=t["balance_color"], font_weight="600")),
+    )
+
+
+def page_stats_cruzado() -> rx.Component:
+    return layout(
+        rx.vstack(
+            rx.heading("Reporte Cruzado", size="6"),
+            rx.divider(),
+            rx.hstack(
+                rx.vstack(rx.text("Mes", font_size="12px", color="gray"), rx.select(["1","2","3","4","5","6","7","8","9","10","11","12"], placeholder="Seleccionar", value=State.stats_cruz_mes, on_change=State.set_stats_cruz_mes, width="130px"), spacing="1"),
+                rx.vstack(rx.text("Año", font_size="12px", color="gray"), rx.select(["2025", "2026", "2027"], value=State.stats_cruz_anio, on_change=State.set_stats_cruz_anio, width="100px"), spacing="1"),
+                rx.button("Calcular", on_click=State.cargar_stats_cruzado, color_scheme="blue"),
+                spacing="4", align="end",
+            ),
+            rx.table.root(
+                rx.table.header(rx.table.row(
+                    rx.table.column_header_cell("Técnico"),
+                    rx.table.column_header_cell("Equipo"),
+                    rx.table.column_header_cell("Días presentes"),
+                    rx.table.column_header_cell("Servicios realizados"),
+                    rx.table.column_header_cell("Servicios/día"),
+                    rx.table.column_header_cell("Horas trabajadas"),
+                    rx.table.column_header_cell("Balance"),
+                )),
+                rx.table.body(rx.foreach(State.stats_cruz_tecnicos, stats_cruzado_row)),
+                width="100%",
+            ),
+            spacing="4", width="100%",
+        )
+    )
+
+
+# ─── DASHBOARD ───────────────────────────────────────────────────────────────
+
 def dashboard_page() -> rx.Component:
     return rx.cond(
-        State.pagina == "registro", page_registro(),
-        rx.cond(State.pagina == "historial", page_historial(),
-        rx.cond(State.pagina == "tecnicos", page_tecnicos(),
-        rx.cond(State.pagina == "estadisticas", page_estadisticas(),
-        rx.cond(State.pagina == "stock_actual", page_stock_actual(),
-        rx.cond(State.pagina == "stock_entrada", page_stock_entrada(),
-        rx.cond(State.pagina == "stock_salida", page_stock_salida(),
-        rx.cond(State.pagina == "stock_productos", page_stock_productos(),
-        rx.cond(State.pagina == "stock_proveedores", page_proveedores(),
-        rx.cond(State.pagina == "terceros_lista", page_terceros_lista(),
-        rx.cond(State.pagina == "terceros_stock", page_terceros_stock(),
-        rx.cond(State.pagina == "serv_cargar", page_serv_cargar(),
-        rx.cond(State.pagina == "serv_lista", page_serv_lista(),
-        rx.cond(State.pagina == "reporte_cruzado", page_reporte_cruzado(),
-        layout(rx.vstack(
-            rx.heading("Bienvenido!", size="7"),
-            rx.text("Seleccioná un módulo del sidebar.", color="gray"),
-            spacing="4",
-        ))))))))))))))))
+        State.pagina == "carga_dia", page_carga_dia(),
+    rx.cond(State.pagina == "vista_dia", page_vista_dia(),
+    rx.cond(State.pagina == "historial_svc", page_historial_svc(),
+    rx.cond(State.pagina == "dir_carga", page_dir_carga(),
+    rx.cond(State.pagina == "dir_personal", page_dir_personal(),
+    rx.cond(State.pagina == "dir_clientes", page_dir_clientes(),
+    rx.cond(State.pagina == "dir_proveedores", page_dir_proveedores(),
+    rx.cond(State.pagina == "stats_horas", page_stats_horas(),
+    rx.cond(State.pagina == "stats_clientes", page_stats_clientes(),
+    rx.cond(State.pagina == "stats_cruzado", page_stats_cruzado(),
+    rx.cond(State.pagina == "stock_actual", page_stock_actual(),
+    rx.cond(State.pagina == "stock_entrada", page_stock_entrada(),
+    rx.cond(State.pagina == "stock_salida", page_stock_salida(),
+    rx.cond(State.pagina == "stock_productos", page_stock_productos(),
+    rx.cond(State.pagina == "stock_proveedores", page_proveedores(),
+    rx.cond(State.pagina == "terceros_lista", page_terceros_lista(),
+    rx.cond(State.pagina == "terceros_stock", page_terceros_stock(),
+    layout(rx.vstack(
+        rx.heading("Bienvenido!", size="7"),
+        rx.text("Seleccioná un módulo del sidebar.", color="gray"),
+        spacing="4",
+    )))))))))))))))))))
 
 
 app = rx.App(theme=rx.theme(accent_color="blue", has_background=True))
 app.add_page(login_page, route="/")
-app.add_page(dashboard_page, route="/dashboard", on_load=State.cargar_empleados)
+app.add_page(dashboard_page, route="/dashboard", on_load=State.cargar_equipos)
