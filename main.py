@@ -5,6 +5,19 @@ from routers import equipos, movimientos_camioneta, directorio, estadisticas, se
 
 app = FastAPI(title="App-Logic API", version="2.0.0")
 
+@app.get("/debug-env")
+def debug_env():
+    import os
+    url = os.getenv("SUPABASE_URL", "NOT SET")
+    key = os.getenv("SUPABASE_KEY", "NOT SET")
+    return {
+        "url_length": len(url) if url else 0,
+        "url_starts": url[:30] if url else None,
+        "url_ends": repr(url[-10:]) if url else None,
+        "key_length": len(key) if key else 0,
+        "key_starts": key[:10] if key else None,
+    }
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
