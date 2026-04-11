@@ -10,10 +10,12 @@ def listar_servicios(
     cliente_ref: str = None,
     cliente: str = None,
     equipo_id: str = None,
+    responsable: str = None,
     estado: str = None,
     mes: int = None,
     anio: int = None,
-    fecha: str = None
+    fecha: str = None,
+    tipo: str = None,   # "equipos" | "interior"
 ):
     query = supabase.table("servicios").select("*, equipos(nombre, patente)")
     if cliente_ref:
@@ -22,10 +24,16 @@ def listar_servicios(
         query = query.ilike("cliente", f"%{cliente}%")
     if equipo_id:
         query = query.eq("equipo_id", equipo_id)
+    if responsable:
+        query = query.ilike("responsable", f"%{responsable}%")
     if estado:
         query = query.eq("estado", estado)
     if fecha:
         query = query.eq("fecha", fecha)
+    if tipo == "equipos":
+        query = query.not_.is_("equipo_id", "null")
+    elif tipo == "interior":
+        query = query.is_("equipo_id", "null")
     if mes and anio:
         ultimo_dia = calendar.monthrange(int(anio), int(mes))[1]
         desde = f"{anio}-{str(mes).zfill(2)}-01"
