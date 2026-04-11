@@ -38,10 +38,33 @@ def eliminar_producto(producto_id: str):
     supabase.table("productos").update({"activo": False}).eq("id", producto_id).execute()
     return {"ok": True}
 
+class UbicacionCreate(BaseModel):
+    nombre: str
+    tipo: Optional[str] = None  # oficina | cd | camioneta | tecnico
+
+class UbicacionUpdate(BaseModel):
+    nombre: Optional[str] = None
+    tipo: Optional[str] = None
+
 @router.get("/ubicaciones/")
 def listar_ubicaciones():
     result = supabase.table("ubicaciones").select("*").execute()
     return result.data
+
+@router.post("/ubicaciones/")
+def crear_ubicacion(data: UbicacionCreate):
+    result = supabase.table("ubicaciones").insert(data.model_dump(exclude_none=True)).execute()
+    return result.data
+
+@router.put("/ubicaciones/{ubicacion_id}")
+def actualizar_ubicacion(ubicacion_id: str, data: UbicacionUpdate):
+    result = supabase.table("ubicaciones").update(data.model_dump(exclude_none=True)).eq("id", ubicacion_id).execute()
+    return result.data
+
+@router.delete("/ubicaciones/{ubicacion_id}")
+def eliminar_ubicacion(ubicacion_id: str):
+    supabase.table("ubicaciones").delete().eq("id", ubicacion_id).execute()
+    return {"ok": True}
 
 @router.get("/actual/")
 def stock_actual(ubicacion_id: str = None):
