@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from models.stock import MovimientoCreate, InstalacionCreate
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from database import supabase
 
 router = APIRouter()
@@ -13,20 +13,36 @@ class ProductoCreate(BaseModel):
     proveedor_id: Optional[str] = None
 
 class ProductoUpdate(BaseModel):
+    codigo: Optional[str] = None
     descripcion: Optional[str] = None
     categoria: Optional[str] = None
     proveedor_id: Optional[str] = None
     activo: Optional[bool] = None
 
+# ─── MAPEO SERENÍSIMA ──────────────────────────────────────────────
+
+class MapeoSerCreate(BaseModel):
+    codigo_serenisima: int
+    descripcion: str
+    producto_ids: List[str]
+
+class MapeoSerUpdate(BaseModel):
+    codigo_serenisima: Optional[int] = None
+    descripcion: Optional[str] = None
+    producto_ids: Optional[List[str]] = None
+
 @router.get("/productos/")
 def listar_productos():
-    result = supabase.table("productos").select("*, proveedores(nombre)").eq("activo", True).order("codigo").execute()
+    result = supabase.table("productos").select("*, proveedores(nombre)").order("codigo").execute()
     return result.data
 
 @router.post("/productos/")
 def crear_producto(data: ProductoCreate):
-    result = supabase.table("productos").insert(data.model_dump()).execute()
-    return result.data
+    try:
+        result = supabase.table("productos").insert(data.model_dump()).execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/productos/{producto_id}")
 def actualizar_producto(producto_id: str, data: ProductoUpdate):
@@ -35,8 +51,11 @@ def actualizar_producto(producto_id: str, data: ProductoUpdate):
 
 @router.delete("/productos/{producto_id}")
 def eliminar_producto(producto_id: str):
-    supabase.table("productos").update({"activo": False}).eq("id", producto_id).execute()
-    return {"ok": True}
+    try:
+        supabase.table("productos").delete().eq("id", producto_id).execute()
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 class UbicacionCreate(BaseModel):
     nombre: str
@@ -126,6 +145,32 @@ def registrar_instalacion(data: InstalacionCreate):
         })
     supabase.table("movimientos").insert(movimientos).execute()
     return {"ok": True, "insumos_descontados": len(movimientos)}
+
+
+# ─── MAPEO SERENÍSIMA ENDPOINTS ────────────────────────────────────
+
+@router.get("/mapeo-serenisima/")
+def listar_mapeo():
+    result = supabase.table("mapeo_serenisima").select("*").order("codigo_serenisima").execute()
+    return result.data
+
+@router.post("/mapeo-serenisima/")
+def crear_mapeo(data: MapeoSerCreate):
+    try:
+        result = supabase.table("mapeo_serenisima").insert(data.model_dump()).execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/mapeo-serenisima/{mapeo_id}")
+def actualizar_mapeo(mapeo_id: str, data: MapeoSerUpdate):
+    result = supabase.table("mapeo_serenisima").update(data.model_dump(exclude_none=True)).eq("id", mapeo_id).execute()
+    return result.data
+
+@router.delete("/mapeo-serenisima/{mapeo_id}")
+def eliminar_mapeo(mapeo_id: str):
+    supabase.table("mapeo_serenisima").delete().eq("id", mapeo_id).execute()
+    return {"ok": True}
 
 
 def _actualizar_stock(producto_id: str, ubicacion_id: str, delta: int):
