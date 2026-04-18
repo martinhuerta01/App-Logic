@@ -47,6 +47,19 @@ def actualizar_movimiento(movimiento_id: str, data: MovimientoCamionetaUpdate):
         .eq("id", movimiento_id).execute()
     return result.data
 
+@router.patch("/{movimiento_id}")
+def actualizar_movimiento_parcial(movimiento_id: str, data: MovimientoCamionetaUpdate):
+    payload = data.model_dump(exclude_none=True, mode="json")
+    # Permitir vaciar campos opcionales (string vacío → None en Supabase)
+    for campo in ("llegada_gr_lch", "salida_gr_lch", "hora_llegada", "punto_inicio", "punto_fin", "observaciones"):
+        raw = getattr(data, campo, None)
+        if raw == "":
+            payload[campo] = None
+    result = supabase.table("movimientos_camioneta")\
+        .update(payload)\
+        .eq("id", movimiento_id).execute()
+    return result.data[0] if result.data else {}
+
 @router.delete("/{movimiento_id}")
 def eliminar_movimiento(movimiento_id: str):
     supabase.table("tecnicos_jornada").delete().eq("movimiento_id", movimiento_id).execute()
