@@ -165,6 +165,40 @@ def listar_movimientos(ubicacion_id: str = None, producto_id: str = None):
     result = query.order("fecha", desc=True).execute()
     return result.data
 
+class MovimientoUpdate(BaseModel):
+    cantidad: Optional[int] = None
+    fecha: Optional[str] = None
+    observacion: Optional[str] = None
+
+@router.patch("/movimientos/{movimiento_id}/")
+def actualizar_movimiento(movimiento_id: str, data: MovimientoUpdate):
+    mov = supabase.table("movimientos").select("*").eq("id", movimiento_id).execute()
+    if not mov.data:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    m = mov.data[0]
+    update_data = data.model_dump(exclude_none=True)
+    if "cantidad" in update_data:
+        delta = update_data["cantidad"] - m["cantidad"]
+        if m.get("destino_id"):
+            _actualizar_stock(m["producto_id"], m["destino_id"], delta)
+        if m.get("origen_id"):
+            _actualizar_stock(m["producto_id"], m["origen_id"], -delta)
+    result = supabase.table("movimientos").update(update_data).eq("id", movimiento_id).execute()
+    return result.data
+
+@router.delete("/movimientos/{movimiento_id}/")
+def eliminar_movimiento(movimiento_id: str):
+    mov = supabase.table("movimientos").select("*").eq("id", movimiento_id).execute()
+    if not mov.data:
+        raise HTTPException(status_code=404, detail="Movimiento no encontrado")
+    m = mov.data[0]
+    if m.get("destino_id"):
+        _actualizar_stock(m["producto_id"], m["destino_id"], -m["cantidad"])
+    if m.get("origen_id"):
+        _actualizar_stock(m["producto_id"], m["origen_id"], m["cantidad"])
+    supabase.table("movimientos").delete().eq("id", movimiento_id).execute()
+    return {"ok": True}
+
 @router.post("/instalacion/")
 def registrar_instalacion(data: InstalacionCreate):
     receta = supabase.table("recetas").select("*, productos(id, codigo, descripcion)").eq("tipo_instalacion", data.tipo_instalacion).execute()
