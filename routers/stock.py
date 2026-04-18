@@ -95,6 +95,14 @@ def stock_actual(ubicacion_id: str = None):
     result = query.execute()
     return result.data
 
+class StockActualUpdate(BaseModel):
+    cantidad: int
+
+@router.patch("/actual/{stock_id}/")
+def actualizar_stock_actual(stock_id: str, data: StockActualUpdate):
+    result = supabase.table("stock_actual").update({"cantidad": data.cantidad}).eq("id", stock_id).execute()
+    return result.data
+
 @router.post("/movimiento/")
 def registrar_movimiento(data: MovimientoCreate):
     mov = supabase.table("movimientos").insert(data.model_dump(mode="json")).execute()
@@ -102,6 +110,47 @@ def registrar_movimiento(data: MovimientoCreate):
         _actualizar_stock(data.producto_id, data.origen_id, -data.cantidad)
     if data.destino_id:
         _actualizar_stock(data.producto_id, data.destino_id, data.cantidad)
+    return mov.data
+
+class EntradaCreate(BaseModel):
+    producto_id: str
+    ubicacion_id: str
+    cantidad: int
+    fecha: str
+    observaciones: Optional[str] = None
+
+class TransferenciaCreate(BaseModel):
+    producto_id: str
+    ubicacion_origen_id: str
+    ubicacion_destino_id: str
+    cantidad: int
+    fecha: str
+
+@router.post("/entradas/")
+def registrar_entrada(data: EntradaCreate):
+    mov = supabase.table("movimientos").insert({
+        "tipo": "ENTRADA",
+        "producto_id": data.producto_id,
+        "destino_id": data.ubicacion_id,
+        "cantidad": data.cantidad,
+        "fecha": data.fecha,
+        "observacion": data.observaciones,
+    }).execute()
+    _actualizar_stock(data.producto_id, data.ubicacion_id, data.cantidad)
+    return mov.data
+
+@router.post("/transferencias/")
+def registrar_transferencia(data: TransferenciaCreate):
+    mov = supabase.table("movimientos").insert({
+        "tipo": "TRANSFERENCIA",
+        "producto_id": data.producto_id,
+        "origen_id": data.ubicacion_origen_id,
+        "destino_id": data.ubicacion_destino_id,
+        "cantidad": data.cantidad,
+        "fecha": data.fecha,
+    }).execute()
+    _actualizar_stock(data.producto_id, data.ubicacion_origen_id, -data.cantidad)
+    _actualizar_stock(data.producto_id, data.ubicacion_destino_id, data.cantidad)
     return mov.data
 
 @router.get("/movimientos/")
