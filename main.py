@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import auth, empleados, jornadas, stock, terceros, proveedores
 from routers import equipos, movimientos_camioneta, directorio, estadisticas, servicios
+from routers import opciones_carga
 
 app = FastAPI(title="App-Logic API", version="2.0.0")
 
@@ -33,6 +34,7 @@ app.include_router(jornadas.router,    prefix="/jornadas",    tags=["Jornadas"])
 app.include_router(stock.router,       prefix="/stock",       tags=["Stock"])
 app.include_router(terceros.router,    prefix="/terceros",    tags=["Terceros"])
 app.include_router(proveedores.router, prefix="/proveedores", tags=["Proveedores"])
+app.include_router(opciones_carga.router, prefix="/opciones-carga", tags=["opciones-carga"])
 
 # Nuevos módulos
 app.include_router(equipos.router,              prefix="/equipos",              tags=["Equipos"])
