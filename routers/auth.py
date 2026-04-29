@@ -24,6 +24,7 @@ def login(data: LoginRequest):
     resultado = supabase.table("usuarios") \
         .select("*") \
         .eq("nombre", data.usuario) \
+        .eq("activo", True) \
         .execute()
 
     if not resultado.data:
@@ -36,8 +37,12 @@ def login(data: LoginRequest):
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
 
     token = crear_token(data.usuario)
-    return TokenResponse(access_token=token, usuario=data.usuario)
-
+    return TokenResponse(
+        access_token=token,
+        usuario=data.usuario,
+        rol=usuario_db.get("rol", "usuario"),
+        modulos=usuario_db.get("modulos", None),
+    )
 
 @router.post("/hash")
 def generar_hash(data: LoginRequest):
