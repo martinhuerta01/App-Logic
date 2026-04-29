@@ -36,7 +36,7 @@ def crear_usuario(data: UsuarioCreate):
     return res.data[0]
 
 @router.put("/{usuario_id}")
-def actualizar_usuario(usuario_id: int, data: UsuarioUpdate):
+def actualizar_usuario(usuario_id: str, data: UsuarioUpdate):
     updates = {}
     if data.rol      is not None: updates["rol"]     = data.rol
     if data.modulos  is not None: updates["modulos"] = data.modulos
