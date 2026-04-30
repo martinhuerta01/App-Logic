@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import auth, empleados, jornadas, stock, terceros, proveedores
 from routers import equipos, movimientos_camioneta, directorio, estadisticas, servicios
 from routers import opciones_carga
-from routers import usuarios
+from routers import usuarios, tareas
 
 app = FastAPI(title="App-Logic API", version="2.0.0")
 
@@ -47,3 +47,4 @@ app.include_router(directorio.router,           prefix="/directorio",           
 app.include_router(estadisticas.router,         prefix="/estadisticas",         tags=["Estadísticas"])
 app.include_router(servicios.router,            prefix="/servicios",            tags=["Servicios"])
 app.include_router(usuarios.router, prefix="/usuarios", tags=["Usuarios"])
+app.include_router(tareas.router,               prefix="/tareas",               tags=["Tareas"])
