@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from models.tareas import TareaCreate, TareaUpdate
+from models.tareas import TareaCreate, TareaUpdate, CompletacionCreate
 from database import supabase
 
 router = APIRouter()
@@ -35,4 +35,27 @@ def actualizar_tarea(tarea_id: str, data: TareaUpdate):
 @router.delete("/{tarea_id}")
 def eliminar_tarea(tarea_id: str):
     supabase.table("tareas").delete().eq("id", tarea_id).execute()
+    return {"ok": True}
+
+# ── Completaciones de tareas recurrentes ──
+
+@router.get("/completaciones/")
+def listar_completaciones(tarea_id: str = None, fecha: str = None):
+    query = supabase.table("tareas_completadas").select("*")
+    if tarea_id:
+        query = query.eq("tarea_id", tarea_id)
+    if fecha:
+        query = query.eq("fecha", fecha)
+    result = query.execute()
+    return result.data
+
+@router.post("/completaciones/")
+def crear_completacion(data: CompletacionCreate):
+    result = supabase.table("tareas_completadas").insert(data.model_dump(mode="json")).execute()
+    return result.data
+
+@router.delete("/completaciones/")
+def eliminar_completacion(tarea_id: str, fecha: str):
+    supabase.table("tareas_completadas")\
+        .delete().eq("tarea_id", tarea_id).eq("fecha", fecha).execute()
     return {"ok": True}
