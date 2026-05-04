@@ -11,7 +11,7 @@ class TareaCreate(BaseModel):
     asignado_a: Optional[str] = None
     cargado_por: Optional[str] = None
     es_recurrente: bool = False
-    frecuencia: Optional[str] = None   # diaria | semanal | mensual
+    frecuencia: Optional[str] = None   # diaria | semanal | quincenal | mensual
 
 class TareaUpdate(BaseModel):
     titulo: Optional[str] = None
