@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.get("/")
 def listar_movimientos(equipo_id: str = None, mes: int = None, anio: int = None):
-    query = supabase.table("movimientos_camioneta").select("*, equipos(nombre, patente)")
+    query = supabase.table("movimientos_camioneta").select("*, equipos(nombre, patente), tecnicos_jornada(tecnico_id, presente, empleados(nombre))")
     if equipo_id:
         query = query.eq("equipo_id", equipo_id)
     if mes and anio:
