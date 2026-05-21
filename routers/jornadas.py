@@ -53,6 +53,11 @@ def listar_ausencias(empleado_id: str = None):
     result = query.order("fecha_desde", desc=True).execute()
     return result.data
 
+@router.delete("/ausencias/{ausencia_id}")
+def eliminar_ausencia(ausencia_id: str):
+    supabase.table("ausencias").delete().eq("id", ausencia_id).execute()
+    return {"ok": True}
+
 @router.get("/reporte_cruzado/")
 def reporte_cruzado(mes: int = None, anio: int = None):
     jornadas_q = supabase.table("jornadas").select("*")
