@@ -14,6 +14,14 @@ class DirectorioCreate(BaseModel):
     equipo_id: Optional[str] = None        # solo para internos
     contacto: Optional[str] = None
     observaciones: Optional[str] = None
+    razon_social: Optional[str] = None
+    precio_inst_basica: Optional[int] = None
+    precio_inst_chasis: Optional[int] = None
+    precio_inst_tracto: Optional[int] = None
+    precio_inst_semi: Optional[int] = None
+    precio_revision: Optional[int] = None
+    precio_desinstalacion: Optional[int] = None
+    precio_camara: Optional[int] = None
     activo: bool = True
 
 class DirectorioUpdate(BaseModel):
@@ -29,6 +37,14 @@ class DirectorioUpdate(BaseModel):
     equipo_id: Optional[str] = None
     contacto: Optional[str] = None
     observaciones: Optional[str] = None
+    razon_social: Optional[str] = None
+    precio_inst_basica: Optional[int] = None
+    precio_inst_chasis: Optional[int] = None
+    precio_inst_tracto: Optional[int] = None
+    precio_inst_semi: Optional[int] = None
+    precio_revision: Optional[int] = None
+    precio_desinstalacion: Optional[int] = None
+    precio_camara: Optional[int] = None
     activo: Optional[bool] = None
 
 class SubresponsableCreate(BaseModel):
