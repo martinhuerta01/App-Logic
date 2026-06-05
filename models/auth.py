@@ -11,3 +11,4 @@ class TokenResponse(BaseModel):
     usuario: str
     rol: str
     modulos: Optional[list[str]] = None
+    submodulos: Optional[dict] = None

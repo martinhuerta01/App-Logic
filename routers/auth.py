@@ -42,6 +42,7 @@ def login(data: LoginRequest):
         usuario=data.usuario,
         rol=usuario_db.get("rol", "usuario"),
         modulos=usuario_db.get("modulos", None),
+        submodulos=usuario_db.get("submodulos", None),
     )
 
 @router.post("/hash")
