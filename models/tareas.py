@@ -8,10 +8,10 @@ class TareaCreate(BaseModel):
     fecha_vencimiento: Optional[date] = None
     prioridad: str = "media"           # alta | media | baja
     estado: str = "pendiente"          # pendiente | en_progreso | completada
+    tipo: str = "tarea"               # tarea | investigacion | bug | mejora
+    categoria: Optional[str] = None
     asignado_a: Optional[str] = None
     cargado_por: Optional[str] = None
-    es_recurrente: bool = False
-    frecuencia: Optional[str] = None   # diaria | semanal | quincenal | mensual
 
 class TareaUpdate(BaseModel):
     titulo: Optional[str] = None
@@ -19,11 +19,10 @@ class TareaUpdate(BaseModel):
     fecha_vencimiento: Optional[date] = None
     prioridad: Optional[str] = None
     estado: Optional[str] = None
+    tipo: Optional[str] = None
+    categoria: Optional[str] = None
     asignado_a: Optional[str] = None
-    es_recurrente: Optional[bool] = None
-    frecuencia: Optional[str] = None
 
-class CompletacionCreate(BaseModel):
-    tarea_id: str
-    fecha: date
-    completado_por: Optional[str] = None
+class NotaCreate(BaseModel):
+    texto: str
+    cargado_por: Optional[str] = None
