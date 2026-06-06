@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from models.stock import MovimientoCreate, InstalacionCreate
 from pydantic import BaseModel
 from typing import Optional, List
 from database import supabase
+from auth_middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 class ProductoCreate(BaseModel):
     codigo: str

@@ -1,9 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from models.servicios import ServicioCreate, ServicioUpdate
 from database import supabase
 import calendar
+from auth_middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/")
 def listar_servicios(

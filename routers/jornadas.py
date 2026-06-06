@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from models.jornadas import JornadaCreate, AusenciaCreate
 from database import supabase
+from auth_middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.post("/")
 def cargar_jornada(data: JornadaCreate):

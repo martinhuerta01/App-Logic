@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from models.auth import LoginRequest, TokenResponse
 from database import supabase
 import jwt
@@ -6,11 +6,14 @@ import bcrypt
 import os
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 load_dotenv()
 
 router = APIRouter()
 SECRET_KEY = os.getenv("SECRET_KEY")
+limiter = Limiter(key_func=get_remote_address)
 
 def crear_token(usuario: str) -> str:
     payload = {
@@ -20,7 +23,8 @@ def crear_token(usuario: str) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 
 @router.post("/login", response_model=TokenResponse)
-def login(data: LoginRequest):
+@limiter.limit("5/minute")
+def login(request: Request, data: LoginRequest):
     resultado = supabase.table("usuarios") \
         .select("*") \
         .eq("nombre", data.usuario) \
@@ -45,8 +49,3 @@ def login(data: LoginRequest):
         submodulos=usuario_db.get("submodulos", None),
     )
 
-@router.post("/hash")
-def generar_hash(data: LoginRequest):
-    """Endpoint temporal para generar el hash de una password. Eliminarlo después del deploy."""
-    hashed = bcrypt.hashpw(data.password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    return {"hash": hashed}

@@ -1,14 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from database import supabase
 from pydantic import BaseModel
 from typing import Optional
 import bcrypt
+from auth_middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
+
+from pydantic import Field
 
 class UsuarioCreate(BaseModel):
-    nombre: str
-    password: str
+    nombre: str = Field(..., max_length=100)
+    password: str = Field(..., max_length=200)
     rol: str = "usuario"
     modulos: Optional[list[str]] = None
     submodulos: Optional[dict] = None
@@ -18,7 +21,7 @@ class UsuarioUpdate(BaseModel):
     modulos:    Optional[list[str]] = None
     submodulos: Optional[dict]      = None
     activo:     Optional[bool]      = None
-    password:   Optional[str]       = None
+    password:   Optional[str]       = Field(None, max_length=200)
 
 @router.get("/")
 def listar_usuarios():

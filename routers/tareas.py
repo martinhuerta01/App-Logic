@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from models.tareas import TareaCreate, TareaUpdate, NotaCreate
 from database import supabase
+from auth_middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 @router.get("/")
 def listar_tareas(estado: str = None, tipo: str = None, prioridad: str = None):
