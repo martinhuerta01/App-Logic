@@ -22,8 +22,10 @@ app = FastAPI(title="App-Logic API", version="2.0.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-_allowed_origins = list({_frontend_url, "http://localhost:3000"})
+_allowed_origins = [
+    "http://localhost:3000",
+    "https://app-logic-web.vercel.app",
+]
 
 app.add_middleware(
     CORSMiddleware,
