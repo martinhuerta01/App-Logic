@@ -3,6 +3,9 @@ from database import supabase
 from auth_middleware import get_current_user
 import fitz  # pymupdf
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -15,12 +18,23 @@ MESES_MAP = {
 
 def parse_page(text: str):
     """Extrae nombre, legajo, mes y año del texto de una página de recibo."""
+    # Log primeras 800 chars para debug
+    logger.info(f"[RECIBO] texto extraído (800): {repr(text[:800])}")
+
     t = " ".join(text.split())  # normalizar espacios/saltos
 
-    # Nombre: número de legajo + nombre en mayúsculas + CUIT de 11 dígitos
-    name_m = re.search(r"\b(\d{1,4})\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]+?)\s+(\d{11})\b", t)
+    # CUIT con o sin guiones: XX-XXXXXXXX-X o XXXXXXXXXXX
+    cuit_pat = r"\d{2}-?\d{8}-?\d"
+
+    # Nombre: número de legajo + nombre en mayúsculas + CUIT
+    name_m = re.search(
+        r"\b(\d{1,4})\s+([A-Z][A-Z\s]+?)\s+(" + cuit_pat + r")\b",
+        t,
+    )
     nombre = name_m.group(2).strip() if name_m else None
     legajo = name_m.group(1) if name_m else None
+
+    logger.info(f"[RECIBO] nombre={nombre!r} legajo={legajo!r}")
 
     # Período: mes en español + año de 4 dígitos
     period_m = re.search(
@@ -34,6 +48,8 @@ def parse_page(text: str):
         mes = MESES_MAP.get(mes_str)
         anio = int(anio_str)
         periodo_texto = f"{mes_str.capitalize()} {anio_str}"
+
+    logger.info(f"[RECIBO] periodo={periodo_texto!r}")
 
     return nombre, legajo, mes, anio, periodo_texto
 
