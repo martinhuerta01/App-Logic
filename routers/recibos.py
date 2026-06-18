@@ -48,7 +48,7 @@ async def subir_pdf(file: UploadFile = File(...), user=Depends(get_current_user)
 
     procesados = []
     errores = []
-    subido_por = user.get("nombre") or user.get("email") or "sistema"
+    subido_por = user if isinstance(user, str) else "sistema"
 
     for i in range(len(doc)):
         page = doc[i]
