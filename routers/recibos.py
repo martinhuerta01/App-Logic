@@ -3,32 +3,33 @@ from database import supabase
 from auth_middleware import get_current_user
 import fitz  # pymupdf
 import re
-import logging
-
-logger = logging.getLogger(__name__)
+import os
+import httpx
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 BUCKET = "recibos-sueldo"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 MESES_MAP = {
     "ENERO":1,"FEBRERO":2,"MARZO":3,"ABRIL":4,"MAYO":5,"JUNIO":6,
     "JULIO":7,"AGOSTO":8,"SEPTIEMBRE":9,"OCTUBRE":10,"NOVIEMBRE":11,"DICIEMBRE":12,
 }
 
-def parse_page(text: str):
-    """Extrae nombre, legajo, mes y año del texto de una página de recibo."""
-    t = " ".join(text.split())  # normalizar espacios/saltos
 
-    # Nombre: texto entre "APELLIDO Y NOMBRES" y "C.U.I" (aplica a CUIL y CUIT)
+def parse_page(text: str):
+    t = " ".join(text.split())
+
+    # Nombre: texto entre "APELLIDO Y NOMBRES" y "C.U.I"
     name_m = re.search(r"APELLIDO Y NOMBRES\s+([A-Z][A-Z\s]+?)\s+C\.U\.I", t)
     nombre = name_m.group(1).strip() if name_m else None
 
-    # Legajo: número después de la etiqueta "LEGAJO"
+    # Legajo: número después de "LEGAJO"
     legajo_m = re.search(r"\bLEGAJO\s+(\d+)\b", t)
     legajo = legajo_m.group(1) if legajo_m else None
 
-    # Período: mes en español + año de 4 dígitos
+    # Período: mes en español + año
     period_m = re.search(
         r"\b(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+(\d{4})\b",
         t, re.IGNORECASE,
@@ -42,6 +43,36 @@ def parse_page(text: str):
         periodo_texto = f"{mes_str.capitalize()} {anio_str}"
 
     return nombre, legajo, mes, anio, periodo_texto
+
+
+def storage_upload(path: str, data: bytes) -> None:
+    """Sube un archivo a Supabase Storage via HTTP directo."""
+    url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/{path}"
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/pdf",
+        "x-upsert": "true",
+    }
+    resp = httpx.post(url, content=data, headers=headers, timeout=30)
+    if not resp.is_success:
+        raise Exception(f"Storage {resp.status_code}: {resp.text}")
+
+
+def storage_signed_url(path: str, expires_in: int = 3600) -> str:
+    """Genera una URL firmada para descarga."""
+    url = f"{SUPABASE_URL}/storage/v1/object/sign/{BUCKET}/{path}"
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+    }
+    resp = httpx.post(url, json={"expiresIn": expires_in}, headers=headers, timeout=10)
+    if not resp.is_success:
+        raise Exception(f"Signed URL {resp.status_code}: {resp.text}")
+    data = resp.json()
+    signed = data.get("signedURL") or data.get("signedUrl") or data.get("signed_url", "")
+    if not signed:
+        raise Exception(f"No se obtuvo URL firmada: {data}")
+    return f"{SUPABASE_URL}/storage/v1{signed}" if signed.startswith("/object/sign") else signed
 
 
 @router.post("/upload")
@@ -78,54 +109,51 @@ async def subir_pdf(file: UploadFile = File(...), user=Depends(get_current_user)
             errores.append({"pagina": i + 1, "msg": f"Ya existe recibo de {nombre} para {periodo_texto}"})
             continue
 
-        # Crear PDF de página individual
+        # Crear PDF individual (una sola página)
         single = fitz.open()
         single.insert_pdf(doc, from_page=i, to_page=i)
         page_bytes = single.tobytes()
         single.close()
 
-        # Path en Storage: anio/mes/NOMBRE_APELLIDO.pdf
+        # Path en Storage
         safe = re.sub(r"[^A-Za-z0-9_]", "_", nombre)
         path = f"{anio}/{mes:02d}/{safe}.pdf"
 
-        # Subir a Supabase Storage (upsert)
+        # Subir a Storage via HTTP directo
         try:
-            supabase.storage.from_(BUCKET).upload(
-                path, page_bytes,
-                file_options={"content-type": "application/pdf", "upsert": "true"},
-            )
+            storage_upload(path, page_bytes)
         except Exception as e:
-            # Si el archivo ya existe, intentar con remove + re-upload
-            try:
-                supabase.storage.from_(BUCKET).remove([path])
-                supabase.storage.from_(BUCKET).upload(
-                    path, page_bytes,
-                    file_options={"content-type": "application/pdf"},
-                )
-            except Exception as e2:
-                errores.append({"pagina": i + 1, "msg": f"Error al guardar archivo: {str(e2)}"})
-                continue
+            errores.append({"pagina": i + 1, "msg": f"Error al guardar archivo: {str(e)}"})
+            continue
 
         # Guardar metadata en DB
-        supabase.table("recibos_sueldo").insert({
-            "empleado_nombre": nombre,
-            "legajo": legajo,
-            "mes": mes,
-            "anio": anio,
-            "periodo_texto": periodo_texto,
-            "archivo_path": path,
-            "subido_por": subido_por,
-        }).execute()
+        try:
+            supabase.table("recibos_sueldo").insert({
+                "empleado_nombre": nombre,
+                "legajo": legajo,
+                "mes": mes,
+                "anio": anio,
+                "periodo_texto": periodo_texto,
+                "archivo_path": path,
+                "subido_por": subido_por,
+            }).execute()
+        except Exception as e:
+            errores.append({"pagina": i + 1, "msg": f"Error al guardar en DB: {str(e)}"})
+            continue
 
         procesados.append({"nombre": nombre, "periodo": periodo_texto, "pagina": i + 1})
 
     doc.close()
-    return {"procesados": len(procesados), "errores": len(errores), "detalle": procesados, "detalle_errores": errores}
+    return {
+        "procesados": len(procesados),
+        "errores": len(errores),
+        "detalle": procesados,
+        "detalle_errores": errores,
+    }
 
 
 @router.get("/empleados")
 def listar_empleados():
-    """Lista empleados con sus períodos disponibles."""
     result = (
         supabase.table("recibos_sueldo")
         .select("id, empleado_nombre, legajo, mes, anio, periodo_texto")
@@ -152,13 +180,17 @@ def listar_empleados():
 
 @router.get("/{recibo_id}/url")
 def get_signed_url(recibo_id: str):
-    result = supabase.table("recibos_sueldo").select("archivo_path, empleado_nombre, periodo_texto").eq("id", recibo_id).execute()
+    result = (
+        supabase.table("recibos_sueldo")
+        .select("archivo_path, empleado_nombre, periodo_texto")
+        .eq("id", recibo_id)
+        .execute()
+    )
     if not result.data:
         raise HTTPException(404, "Recibo no encontrado")
     r = result.data[0]
     try:
-        signed = supabase.storage.from_(BUCKET).create_signed_url(r["archivo_path"], 3600)
-        url = signed.get("signedURL") or signed.get("signed_url") or signed.get("signedUrl", "")
+        url = storage_signed_url(r["archivo_path"])
     except Exception as e:
         raise HTTPException(500, f"Error al generar URL: {str(e)}")
     return {"url": url, "nombre": r["empleado_nombre"], "periodo": r.get("periodo_texto")}
@@ -171,7 +203,9 @@ def eliminar_recibo(recibo_id: str):
         raise HTTPException(404, "Recibo no encontrado")
     path = result.data[0]["archivo_path"]
     try:
-        supabase.storage.from_(BUCKET).remove([path])
+        url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET}"
+        headers = {"Authorization": f"Bearer {SUPABASE_KEY}", "Content-Type": "application/json"}
+        httpx.delete(url, json={"prefixes": [path]}, headers=headers, timeout=10)
     except Exception:
         pass
     supabase.table("recibos_sueldo").delete().eq("id", recibo_id).execute()
