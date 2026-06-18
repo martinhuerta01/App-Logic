@@ -5,6 +5,9 @@ import fitz  # pymupdf
 import re
 import os
 import httpx
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -21,8 +24,8 @@ MESES_MAP = {
 def parse_page(text: str):
     t = " ".join(text.split())
 
-    # Nombre: texto entre "APELLIDO Y NOMBRES" y "C.U.I"
-    name_m = re.search(r"APELLIDO Y NOMBRES\s+([A-Z][A-Z\s]+?)\s+C\.U\.I", t)
+    # Nombre: texto entre "APELLIDO Y NOMBRES" y "C.U.I" (incluye Ñ y tildes)
+    name_m = re.search(r"APELLIDO Y NOMBRES\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]+?)\s+C\.U\.I", t, re.UNICODE)
     nombre = name_m.group(1).strip() if name_m else None
 
     # Legajo: número después de "LEGAJO"
@@ -93,6 +96,7 @@ async def subir_pdf(file: UploadFile = File(...), user=Depends(get_current_user)
         nombre, legajo, mes, anio, periodo_texto = parse_page(text)
 
         if not nombre or not mes or not anio:
+            logger.warning(f"[RECIBO] pág {i+1} sin nombre/período — texto: {repr(text[:600])}")
             errores.append({"pagina": i + 1, "msg": "No se pudo extraer nombre o período"})
             continue
 
