@@ -18,23 +18,15 @@ MESES_MAP = {
 
 def parse_page(text: str):
     """Extrae nombre, legajo, mes y año del texto de una página de recibo."""
-    # Log primeras 800 chars para debug
-    logger.info(f"[RECIBO] texto extraído (800): {repr(text[:800])}")
-
     t = " ".join(text.split())  # normalizar espacios/saltos
 
-    # CUIT con o sin guiones: XX-XXXXXXXX-X o XXXXXXXXXXX
-    cuit_pat = r"\d{2}-?\d{8}-?\d"
+    # Nombre: texto entre "APELLIDO Y NOMBRES" y "C.U.I" (aplica a CUIL y CUIT)
+    name_m = re.search(r"APELLIDO Y NOMBRES\s+([A-Z][A-Z\s]+?)\s+C\.U\.I", t)
+    nombre = name_m.group(1).strip() if name_m else None
 
-    # Nombre: número de legajo + nombre en mayúsculas + CUIT
-    name_m = re.search(
-        r"\b(\d{1,4})\s+([A-Z][A-Z\s]+?)\s+(" + cuit_pat + r")\b",
-        t,
-    )
-    nombre = name_m.group(2).strip() if name_m else None
-    legajo = name_m.group(1) if name_m else None
-
-    logger.info(f"[RECIBO] nombre={nombre!r} legajo={legajo!r}")
+    # Legajo: número después de la etiqueta "LEGAJO"
+    legajo_m = re.search(r"\bLEGAJO\s+(\d+)\b", t)
+    legajo = legajo_m.group(1) if legajo_m else None
 
     # Período: mes en español + año de 4 dígitos
     period_m = re.search(
@@ -48,8 +40,6 @@ def parse_page(text: str):
         mes = MESES_MAP.get(mes_str)
         anio = int(anio_str)
         periodo_texto = f"{mes_str.capitalize()} {anio_str}"
-
-    logger.info(f"[RECIBO] periodo={periodo_texto!r}")
 
     return nombre, legajo, mes, anio, periodo_texto
 
