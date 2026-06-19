@@ -34,15 +34,17 @@ def parse_page(text: str):
         legajo = legajo_m.group(1) if legajo_m else None
     else:
         # Formato B: tabla — "Lugar de Pago n<legajo> <NOMBRE> <cuil11> <MES>"
-        # Los datos aparecen recién después de todos los encabezados de columna
+        # Nombre: secuencia de palabras en mayúsculas separadas por espacios (sin trailing space)
         b_m = re.search(
-            r"Lugar de Pago\s+n(\d+)\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]+?)\s+\d{10,11}\s+"
+            r"Lugar de Pago\s+n(\d+)\s+((?:[A-ZÀ-ÖØ-öø-ɏ]+\s+)*[A-ZÀ-ÖØ-öø-ɏ]+)\s+\d{10,11}\s+"
             r"(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)",
             t, re.IGNORECASE | re.UNICODE,
         )
         if b_m:
             legajo = b_m.group(1)
             nombre = b_m.group(2).strip()
+        else:
+            logger.warning(f"[RECIBO] formato B no matcheó — texto plano: {repr(t[:400])}")
 
     # Período: mes en español + año
     period_m = re.search(
@@ -108,7 +110,8 @@ async def subir_pdf(file: UploadFile = File(...), user=Depends(get_current_user)
         nombre, legajo, mes, anio, periodo_texto = parse_page(text)
 
         if not nombre or not mes or not anio:
-            logger.warning(f"[RECIBO] pág {i+1} sin nombre/período — texto: {repr(text[:600])}")
+            t_flat = " ".join(text.split())
+            logger.warning(f"[RECIBO] pág {i+1} — nombre={nombre!r} mes={mes!r} — plano: {repr(t_flat[:400])}")
             errores.append({"pagina": i + 1, "msg": "No se pudo extraer nombre o período"})
             continue
 
