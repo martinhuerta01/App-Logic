@@ -24,12 +24,23 @@ MESES_MAP = {
 def parse_page(text: str):
     t = " ".join(text.split())
 
-    # Nombre: texto entre "APELLIDO Y NOMBRES" y "C.U.I" (incluye Ñ y tildes)
+    # Formato A: etiquetas verticales — "APELLIDO Y NOMBRES <nombre> C.U.I"
     name_m = re.search(r"APELLIDO Y NOMBRES\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]+?)\s+C\.U\.I", t, re.UNICODE)
+
+    # Formato B: tabla — "Período Abonado <legajo> <NOMBRE> <cuil11dígitos> <MES>"
+    if not name_m:
+        name_m = re.search(
+            r"Per[ií]odo Abonado\s+\d+\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]+?)\s+\d{8,12}\s+"
+            r"(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)",
+            t, re.IGNORECASE | re.UNICODE,
+        )
+
     nombre = name_m.group(1).strip() if name_m else None
 
-    # Legajo: número después de "LEGAJO"
+    # Legajo: formato A "LEGAJO <n>", formato B "Período Abonado <n> <NOMBRE>"
     legajo_m = re.search(r"\bLEGAJO\s+(\d+)\b", t)
+    if not legajo_m:
+        legajo_m = re.search(r"Per[ií]odo Abonado\s+(\d+)\s+[A-ZÁÉÍÓÚÜÑ]", t, re.IGNORECASE | re.UNICODE)
     legajo = legajo_m.group(1) if legajo_m else None
 
     # Período: mes en español + año
