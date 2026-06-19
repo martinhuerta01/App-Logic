@@ -36,11 +36,14 @@ def parse_page(text: str):
         # Formato B: líneas fijas — n<legajo>\n<NOMBRE>\n<CUIL 11 dígitos>\n<MES AÑO>
         lines = [l.strip() for l in text.split('\n') if l.strip()]
         for i, line in enumerate(lines):
-            if re.match(r'^n\d+$', line) and i + 2 < len(lines):
+            # Legajo: número solo (69) o con prefijo n (n69)
+            legajo_m = re.match(r'^n?(\d{1,4})$', line)
+            if legajo_m and i + 2 < len(lines):
+                nombre_candidate = lines[i + 1]
                 cuil_candidate = lines[i + 2]
-                if re.match(r'^\d{11}$', cuil_candidate):
-                    legajo = line[1:]
-                    nombre = lines[i + 1].strip()
+                if re.match(r'^\d{11}$', cuil_candidate) and ' ' in nombre_candidate:
+                    legajo = legajo_m.group(1)
+                    nombre = nombre_candidate.strip()
                     break
         if not nombre:
             logger.warning(f"[RECIBO] formato B sin match — líneas: {lines[:20]}")
