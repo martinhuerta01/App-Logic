@@ -33,18 +33,17 @@ def parse_page(text: str):
         legajo_m = re.search(r"\bLEGAJO\s+(\d+)\b", t)
         legajo = legajo_m.group(1) if legajo_m else None
     else:
-        # Formato B: tabla — "n<legajo> <NOMBRE> <CUIL-11-digitos> <MES>"
-        # El CUIL (11 dígitos consecutivos) es el ancla más confiable
-        b_m = re.search(
-            r"\bn(\d+)\s+(.+?)\s+(\d{11})\s+"
-            r"(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)",
-            t, re.IGNORECASE,
-        )
-        if b_m:
-            legajo = b_m.group(1)
-            nombre = b_m.group(2).strip()
-        else:
-            logger.warning(f"[RECIBO] formato B no matcheó — texto plano: {repr(t[:500])}")
+        # Formato B: líneas fijas — n<legajo>\n<NOMBRE>\n<CUIL 11 dígitos>\n<MES AÑO>
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        for i, line in enumerate(lines):
+            if re.match(r'^n\d+$', line) and i + 2 < len(lines):
+                cuil_candidate = lines[i + 2]
+                if re.match(r'^\d{11}$', cuil_candidate):
+                    legajo = line[1:]
+                    nombre = lines[i + 1].strip()
+                    break
+        if not nombre:
+            logger.warning(f"[RECIBO] formato B sin match — líneas: {lines[:20]}")
 
     # Período: mes en español + año
     period_m = re.search(
