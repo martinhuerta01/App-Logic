@@ -96,6 +96,7 @@ async def subir_pdf(file: UploadFile = File(...), user=Depends(get_current_user)
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Solo se aceptan archivos PDF")
 
+    logger.info(f"[RECIBO v7] procesando {file.filename}")
     pdf_bytes = await file.read()
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
