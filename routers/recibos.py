@@ -27,24 +27,24 @@ def parse_page(text: str):
     legajo = None
 
     # Formato A: etiquetas verticales — "APELLIDO Y NOMBRES <nombre> C.U.I"
-    name_m = re.search(r"APELLIDO Y NOMBRES\s+([A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ\s]+?)\s+C\.U\.I", t, re.UNICODE)
+    name_m = re.search(r"APELLIDO Y NOMBRES\s+(.+?)\s+C\.U\.I", t)
     if name_m:
         nombre = name_m.group(1).strip()
         legajo_m = re.search(r"\bLEGAJO\s+(\d+)\b", t)
         legajo = legajo_m.group(1) if legajo_m else None
     else:
-        # Formato B: tabla — "Lugar de Pago n<legajo> <NOMBRE> <cuil11> <MES>"
-        # Nombre: secuencia de palabras en mayúsculas separadas por espacios (sin trailing space)
+        # Formato B: tabla — "n<legajo> <NOMBRE> <CUIL-11-digitos> <MES>"
+        # El CUIL (11 dígitos consecutivos) es el ancla más confiable
         b_m = re.search(
-            r"Lugar de Pago\s+n(\d+)\s+((?:[A-ZÀ-ÖØ-öø-ɏ]+\s+)*[A-ZÀ-ÖØ-öø-ɏ]+)\s+\d{10,11}\s+"
+            r"\bn(\d+)\s+(.+?)\s+(\d{11})\s+"
             r"(?:ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)",
-            t, re.IGNORECASE | re.UNICODE,
+            t, re.IGNORECASE,
         )
         if b_m:
             legajo = b_m.group(1)
             nombre = b_m.group(2).strip()
         else:
-            logger.warning(f"[RECIBO] formato B no matcheó — texto plano: {repr(t[:400])}")
+            logger.warning(f"[RECIBO] formato B no matcheó — texto plano: {repr(t[:500])}")
 
     # Período: mes en español + año
     period_m = re.search(
