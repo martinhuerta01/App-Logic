@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from routers import auth, empleados, jornadas, stock, terceros, proveedores
+from routers import auth, empleados, jornadas, stock, stock_tickets, terceros, proveedores
 from routers import equipos, movimientos_camioneta, directorio, estadisticas, servicios
 from routers import opciones_carga
 from routers import usuarios, tareas, recibos
@@ -51,6 +51,7 @@ app.include_router(auth.router,                  prefix="/auth",                
 app.include_router(empleados.router,             prefix="/empleados",             tags=["Empleados"])
 app.include_router(jornadas.router,              prefix="/jornadas",              tags=["Jornadas"])
 app.include_router(stock.router,                 prefix="/stock",                 tags=["Stock"])
+app.include_router(stock_tickets.router,         prefix="/stock",                 tags=["Stock · Tickets"])
 app.include_router(terceros.router,              prefix="/terceros",              tags=["Terceros"])
 app.include_router(proveedores.router,           prefix="/proveedores",           tags=["Proveedores"])
 app.include_router(opciones_carga.router,        prefix="/opciones-carga",        tags=["Opciones"])

@@ -155,7 +155,7 @@ def registrar_transferencia(data: TransferenciaCreate):
     return mov.data
 
 @router.get("/movimientos/")
-def listar_movimientos(ubicacion_id: str = None, producto_id: str = None):
+def listar_movimientos(ubicacion_id: str = None, producto_id: str = None, serial: str = None):
     query = supabase.table("movimientos").select(
         "*, productos(codigo, descripcion), ubicaciones!movimientos_origen_id_fkey(nombre)"
     )
@@ -163,6 +163,8 @@ def listar_movimientos(ubicacion_id: str = None, producto_id: str = None):
         query = query.or_(f"origen_id.eq.{ubicacion_id},destino_id.eq.{ubicacion_id}")
     if producto_id:
         query = query.eq("producto_id", producto_id)
+    if serial:
+        query = query.eq("serial", serial)
     result = query.order("fecha", desc=True).execute()
     return result.data
 
@@ -255,6 +257,40 @@ def actualizar_mapeo(mapeo_id: str, data: MapeoSerUpdate):
 def eliminar_mapeo(mapeo_id: str):
     supabase.table("mapeo_serenisima").delete().eq("id", mapeo_id).execute()
     return {"ok": True}
+
+
+# ─── EQUIPOS SERIALIZADOS (estado actual por serial) ──────────────
+
+@router.get("/equipos/")
+def listar_equipos(estado: str = None, ubicacion_id: str = None, patente: str = None, q: str = None):
+    query = supabase.table("equipos_estado").select(
+        "*, productos(codigo, descripcion), ubicaciones(nombre)"
+    )
+    if estado:
+        query = query.eq("estado", estado)
+    if ubicacion_id:
+        query = query.eq("ubicacion_id", ubicacion_id)
+    if patente:
+        query = query.eq("patente", patente)
+    if q:
+        query = query.ilike("serial", f"%{q}%")
+    result = query.order("updated_at", desc=True).execute()
+    return result.data
+
+class EquipoEstadoUpdate(BaseModel):
+    estado: Optional[str] = None
+    ubicacion_id: Optional[str] = None
+    patente: Optional[str] = None
+    configuracion: Optional[str] = None
+    cliente: Optional[str] = None
+    sin_control: Optional[bool] = None
+
+@router.patch("/equipos/{serial}/")
+def actualizar_equipo(serial: str, data: EquipoEstadoUpdate):
+    result = supabase.table("equipos_estado").update(data.model_dump(exclude_none=True)).eq("serial", serial).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    return result.data
 
 
 def _actualizar_stock(producto_id: str, ubicacion_id: str, delta: int):
