@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import date
 
 class ServicioCreate(BaseModel):
@@ -16,6 +16,7 @@ class ServicioCreate(BaseModel):
     estado: str = "PENDIENTE"
     observaciones: Optional[str] = None
     cargado_por: Optional[str] = None
+    confirmar_duplicado: bool = False      # no se guarda: autoriza cargar aunque ya exista uno igual
 
 class ServicioUpdate(BaseModel):
     fecha: Optional[date] = None
@@ -30,3 +31,8 @@ class ServicioUpdate(BaseModel):
     patente: Optional[str] = None
     estado: Optional[str] = None
     observaciones: Optional[str] = None
+    confirmar_duplicado: bool = False
+
+class ServicioLote(BaseModel):
+    servicios: List[ServicioCreate]
+    confirmar_duplicado: bool = False
