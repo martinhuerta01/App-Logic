@@ -3,9 +3,9 @@ from database import supabase
 from pydantic import BaseModel
 from typing import Optional
 import bcrypt
-from auth_middleware import get_current_user
+from auth_middleware import requiere_admin, invalidar_usuario_en_memoria
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter(dependencies=[Depends(requiere_admin)])
 
 from pydantic import Field
 
@@ -53,4 +53,5 @@ def actualizar_usuario(usuario_id: str, data: UsuarioUpdate):
             data.password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
     res = supabase.table("usuarios").update(updates).eq("id", usuario_id).execute()
+    invalidar_usuario_en_memoria()
     return res.data[0]

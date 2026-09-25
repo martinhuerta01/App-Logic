@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from database import supabase
-from auth_middleware import get_current_user
+from auth_middleware import get_current_user, requiere_modulo
 import fitz  # pymupdf
 import re
 import os
@@ -9,7 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter(dependencies=[Depends(requiere_modulo("recibos"))])
 
 BUCKET = "recibos-sueldo"
 SUPABASE_URL = os.getenv("SUPABASE_URL")
