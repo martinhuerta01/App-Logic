@@ -16,6 +16,7 @@ Una migración es un cambio de la estructura de la base de datos (tablas, column
 |---|---|---|
 | 001_stock_tickets_y_seriales | Tickets importados, serial en movimientos, mapeo de talleres, estado de equipos, función de confirmación | Sí |
 | 002_stock_talleres_y_configuracion | Doble pool por taller (`aplica_a`), configuración y cliente de equipos, función actualizada | Sí |
+| 003_stock_minimos_plazos_y_equipos | Stock mínimo por vista, plazo de entrega por producto y enlace de ubicación con equipo | **Pendiente** |
 
 ## Datos iniciales que no son migraciones
 

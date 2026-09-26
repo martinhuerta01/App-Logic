@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from models.stock import MovimientoCreate, InstalacionCreate
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import date, datetime
 from database import supabase
 from auth_middleware import get_current_user
 
@@ -12,12 +13,14 @@ class ProductoCreate(BaseModel):
     descripcion: str
     categoria: str
     proveedor_id: Optional[str] = None
+    plazo_entrega_dias: Optional[int] = None
 
 class ProductoUpdate(BaseModel):
     codigo: Optional[str] = None
     descripcion: Optional[str] = None
     categoria: Optional[str] = None
     proveedor_id: Optional[str] = None
+    plazo_entrega_dias: Optional[int] = None
     activo: Optional[bool] = None
 
 # ─── MAPEO SERENÍSIMA ──────────────────────────────────────────────
@@ -40,7 +43,7 @@ def listar_productos():
 @router.post("/productos/")
 def crear_producto(data: ProductoCreate):
     try:
-        result = supabase.table("productos").insert(data.model_dump()).execute()
+        result = supabase.table("productos").insert(data.model_dump(exclude_none=True)).execute()
         return result.data
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -60,11 +63,13 @@ def eliminar_producto(producto_id: str):
 
 class UbicacionCreate(BaseModel):
     nombre: str
-    tipo: Optional[str] = None  # oficina | cd | camioneta | tecnico
+    tipo: Optional[str] = None  # oficina | cd | general
+    equipo_id: Optional[str] = None  # enlace opcional con el equipo de Personal (Camioneta 1 -> Equipo 1)
 
 class UbicacionUpdate(BaseModel):
     nombre: Optional[str] = None
     tipo: Optional[str] = None
+    equipo_id: Optional[str] = None
 
 @router.get("/ubicaciones/")
 def listar_ubicaciones():
@@ -291,6 +296,67 @@ def actualizar_equipo(serial: str, data: EquipoEstadoUpdate):
     if not result.data:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
     return result.data
+
+
+RESULTADOS_CONTROL = {"USADO_OK_CAMPO", "USADO_OK_OFICINA", "FALLA_RMA", "BAJA"}
+
+class ControlEquipo(BaseModel):
+    resultado: str   # USADO_OK_CAMPO | USADO_OK_OFICINA | FALLA_RMA | BAJA
+    observacion: Optional[str] = None
+    cargado_por: Optional[str] = None
+
+@router.post("/equipos/{serial}/control/")
+def registrar_control_equipo(serial: str, data: ControlEquipo):
+    """Resultado del control de un equipo retirado: actualiza su estado y deja el movimiento registrado."""
+    if data.resultado not in RESULTADOS_CONTROL:
+        raise HTTPException(status_code=400, detail="Resultado de control inválido")
+    equipo = supabase.table("equipos_estado").select("*").eq("serial", serial).execute().data
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    e = equipo[0]
+    if e["estado"] != "RETIRADO_PENDIENTE":
+        raise HTTPException(status_code=400, detail="Solo se controla un equipo retirado pendiente de control")
+    actualizado = supabase.table("equipos_estado").update({"estado": data.resultado, "sin_control": False}).eq("serial", serial).execute()
+    supabase.table("movimientos").insert({
+        "tipo": "RESULTADO_CONTROL",
+        "producto_id": e["producto_id"],
+        "cantidad": 1,
+        "fecha": date.today().isoformat(),
+        "serial": serial,
+        "cargado_por": data.cargado_por,
+        "observacion": f"Control: {data.resultado}" + (f" - {data.observacion}" if data.observacion else ""),
+    }).execute()
+    return actualizado.data
+
+
+# ─── STOCK MÍNIMO POR ÁMBITO (vista del Dashboard de Stock) ───────
+
+class MinimoUpsert(BaseModel):
+    producto_id: str
+    ambito: str          # oficina | serenisima | camioneta1 | camioneta2
+    cantidad_minima: int
+
+@router.get("/minimos/")
+def listar_minimos(ambito: str = None):
+    query = supabase.table("stock_minimo").select("*")
+    if ambito:
+        query = query.eq("ambito", ambito)
+    return query.execute().data
+
+@router.put("/minimos/")
+def guardar_minimo(data: MinimoUpsert):
+    if data.cantidad_minima < 0:
+        raise HTTPException(status_code=400, detail="El mínimo no puede ser negativo")
+    result = supabase.table("stock_minimo").upsert(
+        {**data.model_dump(), "updated_at": datetime.utcnow().isoformat()},
+        on_conflict="producto_id,ambito",
+    ).execute()
+    return result.data
+
+@router.delete("/minimos/")
+def quitar_minimo(producto_id: str, ambito: str):
+    supabase.table("stock_minimo").delete().eq("producto_id", producto_id).eq("ambito", ambito).execute()
+    return {"ok": True}
 
 
 def _actualizar_stock(producto_id: str, ubicacion_id: str, delta: int):
