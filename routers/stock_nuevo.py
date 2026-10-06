@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import date, datetime
 from collections import defaultdict
 from database import supabase
@@ -141,7 +141,7 @@ def stock_de_ubicacion(ubicacion_id: str, usuario: dict = acceso):
     for p in productos:
         pid = p["id"]
         hay_actividad = pid in stock or envios[pid] or tickets[pid] or pid in contado
-        if not hay_actividad:
+        if not hay_actividad or p["categoria"] == "Herramientas":
             continue
         ahora = stock.get(pid, 0)
         filas.append({
@@ -171,8 +171,9 @@ def series_de_ubicacion(ubicacion_id: str, producto_id: str, usuario: dict = acc
 
 @router.get("/productos/")
 def productos_activos(usuario: dict = acceso):
+    # Las herramientas tienen su propia pantalla: no entran en conteos ni envíos
     return supabase.table("productos").select("id, codigo, descripcion, categoria, lleva_serie") \
-        .eq("activo", True).order("codigo").execute().data
+        .eq("activo", True).neq("categoria", "Herramientas").order("codigo").execute().data
 
 
 @router.get("/stock-por-producto/")
@@ -212,3 +213,167 @@ def confirmar_conteo(data: ConteoCreate, usuario: dict = acceso):
         return res.data
     except Exception as e:
         raise HTTPException(status_code=400, detail=_mensaje_de_error(e))
+
+
+# ─── Tickets de soporte ─────────────────────────────────────────────
+
+class TicketMovimiento(BaseModel):
+    tipo: str
+    producto_id: str
+    origen_id: Optional[str] = None
+    destino_id: Optional[str] = None
+    cantidad: int
+    fecha: date
+    observacion: Optional[str] = None
+    serial: Optional[str] = None
+    patente: Optional[str] = None
+    configuracion: Optional[str] = None
+
+
+class TicketConfirmar(BaseModel):
+    ticket_numero: str
+    distrito: Optional[str] = None
+    archivo_nombre: Optional[str] = None
+    fila_excel: Optional[Any] = None
+    movimientos: List[TicketMovimiento]
+    serial_retirado: Optional[str] = None
+    retirado_ubicacion_id: Optional[str] = None  # dónde quedó el equipo retirado (camioneta, taller o centro)
+
+
+@router.get("/tickets/contexto/")
+def contexto_de_tickets(usuario: dict = acceso):
+    """Lo que necesita la pantalla de importación: tickets ya importados, último conteo por ubicación y estado de los equipos."""
+    importados = [i["ticket_numero"] for i in _todos(lambda: supabase.table("tickets_importados").select("ticket_numero"))]
+    ultimos = {}
+    for c in _todos(lambda: supabase.table("conteos").select("ubicacion_id, fecha, creado_en").order("creado_en", desc=True)):
+        ultimos.setdefault(c["ubicacion_id"], c["fecha"])
+    equipos = _todos(lambda: supabase.table("equipos_estado").select("serial, estado, ubicacion_id, recibido_en"))
+    return {"importados": importados, "ultimos_conteos": ultimos, "equipos": equipos}
+
+
+@router.post("/tickets/confirmar/")
+def confirmar_ticket(data: TicketConfirmar, usuario: dict = acceso):
+    """Confirma un ticket de forma atómica (misma función de la base que el módulo actual) y ubica el equipo retirado."""
+    try:
+        res = supabase.rpc("fn_confirmar_ticket_stock", {
+            "p_ticket_numero": data.ticket_numero,
+            "p_distrito": data.distrito,
+            "p_archivo_nombre": data.archivo_nombre,
+            "p_fila_excel": data.fila_excel,
+            "p_cargado_por": usuario["nombre"],
+            "p_movimientos": [m.model_dump(mode="json") for m in data.movimientos],
+        }).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=_mensaje_de_error(e))
+    resultado = res.data
+    if not (resultado or {}).get("duplicado") and data.serial_retirado and data.retirado_ubicacion_id:
+        supabase.table("equipos_estado").update({"ubicacion_id": data.retirado_ubicacion_id}) \
+            .eq("serial", data.serial_retirado).eq("estado", "RETIRADO_PENDIENTE").execute()
+    return resultado
+
+
+# ─── Retirados ──────────────────────────────────────────────────────
+
+class PiezaRecibida(BaseModel):
+    pieza: str
+    llego: bool
+
+
+class RecepcionCreate(BaseModel):
+    piezas: List[PiezaRecibida]
+
+
+class DiasAlerta(BaseModel):
+    dias: int
+
+
+def _dias_alerta() -> int:
+    r = supabase.table("configuracion_stock").select("valor").eq("clave", "dias_alerta_retirados").execute().data
+    try:
+        return int(r[0]["valor"]) if r else 15
+    except (ValueError, KeyError):
+        return 15
+
+
+@router.get("/retirados/")
+def listar_retirados(usuario: dict = acceso):
+    """Equipos retirados que todavía no se recibieron en la Oficina, con el ticket que los retiró."""
+    equipos = _todos(lambda: supabase.table("equipos_estado")
+                     .select("serial, producto_id, ubicacion_id, productos(codigo, descripcion), ubicaciones(nombre)")
+                     .eq("estado", "RETIRADO_PENDIENTE").is_("recibido_en", "null"))
+    retiros = {}
+    for m in _todos(lambda: supabase.table("movimientos").select("serial, fecha, ticket_id, created_at")
+                    .eq("tipo", "RETIRO").order("created_at", desc=True)):
+        if m["serial"]:
+            retiros.setdefault(m["serial"], m)
+    tickets = {t["id"]: t for t in _todos(lambda: supabase.table("tickets_importados").select("id, ticket_numero, distrito, fila_excel"))}
+    hoy = date.today()
+    salida = []
+    for e in equipos:
+        m = retiros.get(e["serial"], {})
+        t = tickets.get(m.get("ticket_id"), {})
+        fila = t.get("fila_excel") or {}
+        fecha = m.get("fecha")
+        dias = (hoy - date.fromisoformat(fecha)).days if fecha else None
+        salida.append({
+            "serial": e["serial"],
+            "producto_id": e["producto_id"],
+            "modelo": (e.get("productos") or {}).get("descripcion"),
+            "codigo": ((e.get("productos") or {}).get("codigo") or "").strip(),
+            "ubicacion_id": e["ubicacion_id"],
+            "ubicacion": (e.get("ubicaciones") or {}).get("nombre"),
+            "ticket_numero": t.get("ticket_numero"),
+            "cliente": t.get("distrito"),
+            "descripcion": fila.get("descripcion") if isinstance(fila, dict) else None,
+            "fecha": fecha,
+            "dias": dias,
+        })
+    salida.sort(key=lambda r: -(r["dias"] if r["dias"] is not None else -1))
+    return {"dias_alerta": _dias_alerta(), "retirados": salida}
+
+
+@router.post("/retirados/{serial}/recibir/")
+def recibir_retirado(serial: str, data: RecepcionCreate, usuario: dict = acceso):
+    oficina = supabase.table("ubicaciones").select("id").eq("tipo", "oficina").limit(1).execute().data
+    if not oficina:
+        raise HTTPException(status_code=400, detail="No hay una ubicación de tipo oficina")
+    eq = supabase.table("equipos_estado").select("serial").eq("serial", serial).execute().data
+    if not eq:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    ticket = None
+    m = supabase.table("movimientos").select("ticket_id").eq("tipo", "RETIRO").eq("serial", serial) \
+        .order("created_at", desc=True).limit(1).execute().data
+    if m and m[0].get("ticket_id"):
+        t = supabase.table("tickets_importados").select("ticket_numero").eq("id", m[0]["ticket_id"]).execute().data
+        ticket = t[0]["ticket_numero"] if t else None
+    try:
+        return supabase.rpc("fn_recibir_retirado", {
+            "p_serial": serial, "p_oficina": oficina[0]["id"], "p_recibido_por": usuario["nombre"],
+            "p_ticket": ticket, "p_piezas": [p.model_dump() for p in data.piezas],
+        }).execute().data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=_mensaje_de_error(e))
+
+
+@router.get("/faltantes/")
+def listar_faltantes(usuario: dict = acceso):
+    return supabase.table("faltantes").select("id, serial, ticket_numero, pieza, creado_en, ubicaciones(nombre)") \
+        .eq("resuelto", False).order("creado_en", desc=True).execute().data
+
+
+@router.patch("/faltantes/{faltante_id}/resolver/")
+def resolver_faltante(faltante_id: str, usuario: dict = acceso):
+    r = supabase.table("faltantes").update({"resuelto": True}).eq("id", faltante_id).execute()
+    if not r.data:
+        raise HTTPException(status_code=404, detail="Faltante no encontrado")
+    return r.data
+
+
+@router.put("/retirados/dias-alerta/")
+def guardar_dias_alerta(data: DiasAlerta, usuario: dict = acceso):
+    if usuario.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administración puede cambiar los días de alerta")
+    if data.dias < 1 or data.dias > 365:
+        raise HTTPException(status_code=400, detail="Los días de alerta tienen que estar entre 1 y 365")
+    supabase.table("configuracion_stock").upsert({"clave": "dias_alerta_retirados", "valor": str(data.dias)}).execute()
+    return {"dias": data.dias}
