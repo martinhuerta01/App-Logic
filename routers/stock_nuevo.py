@@ -477,11 +477,35 @@ def dashboard(usuario: dict = acceso):
             "dias_de_stock": dias, "plazo_entrega_dias": plazo, "pedir_el": pedir_el,
         })
 
+    # Consumo de los últimos 6 meses por categoría (para el gráfico)
+    primer_mes = date(hoy.year, hoy.month, 1)
+    meses = []
+    y, m = hoy.year, hoy.month
+    for _ in range(6):
+        meses.append(f"{y}-{m:02d}")
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    meses.reverse()
+    desde_6 = f"{meses[0]}-01"
+    categoria_de = {p["id"]: p["categoria"] for p in productos}
+    por_mes = {mes: defaultdict(int) for mes in meses}
+    for mov in _todos(lambda: supabase.table("movimientos").select("producto_id, cantidad, fecha")
+                      .in_("tipo", ["INSTALACION", "SALIDA"]).is_("destino_id", "null").gte("fecha", desde_6)):
+        cat = categoria_de.get(mov["producto_id"])
+        if cat and mov["fecha"][:7] in por_mes:
+            por_mes[mov["fecha"][:7]][cat] += mov["cantidad"]
+    consumo_mensual = [{"mes": mes, **{c: por_mes[mes].get(c, 0) for c in ("Dispositivos", "Cables", "Accesorios", "Insumos")}} for mes in meses]
+
     # Retirados y faltantes
     retirados = listar_retirados(usuario)
     dias_retirados = retirados["dias_alerta"]
     atrasados = sum(1 for r in retirados["retirados"] if (r["dias"] or 0) > dias_retirados)
     faltantes = supabase.table("faltantes").select("id").eq("resuelto", False).execute().data
+    tramos = [("Hasta 7 días", 0, 7), ("8 a 15 días", 8, 15), ("16 a 30 días", 16, 30), ("31 a 60 días", 31, 60), ("Más de 60 días", 61, 10**6)]
+    edades = [{"tramo": nombre, "cantidad": sum(1 for r in retirados["retirados"] if r["dias"] is not None and desde_d <= r["dias"] <= hasta_d)}
+              for nombre, desde_d, hasta_d in tramos]
+    edades.append({"tramo": "Sin fecha", "cantidad": sum(1 for r in retirados["retirados"] if r["dias"] is None)})
 
     return {
         "hoy": hoy.isoformat(),
@@ -489,6 +513,8 @@ def dashboard(usuario: dict = acceso):
         "ubicaciones": ubicaciones,
         "reposicion": reposicion,
         "retirados": {"pendientes": len(retirados["retirados"]), "atrasados": atrasados, "dias_alerta": dias_retirados},
+        "retirados_por_edad": edades,
+        "consumo_mensual": consumo_mensual,
         "faltantes": len(faltantes),
         "dias_alerta_conteo": _config_dias("dias_alerta_conteo"),
     }
