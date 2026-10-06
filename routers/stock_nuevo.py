@@ -207,6 +207,26 @@ def registrar_envio(data: EnvioCreate, usuario: dict = acceso):
         raise HTTPException(status_code=400, detail=_mensaje_de_error(e))
 
 
+class CorreccionStock(BaseModel):
+    producto_id: str
+    cantidad: int
+    motivo: Optional[str] = None
+    fecha: Optional[date] = None
+
+
+@router.post("/ubicaciones/{ubicacion_id}/corregir/")
+def corregir_stock(ubicacion_id: str, data: CorreccionStock, usuario: dict = acceso):
+    """Corrige la cantidad de un producto en una ubicación y deja la diferencia registrada como ajuste."""
+    try:
+        res = supabase.rpc("fn_corregir_stock", {
+            "p_ubicacion": ubicacion_id, "p_producto": data.producto_id, "p_nuevo": data.cantidad,
+            "p_motivo": data.motivo, "p_por": usuario["nombre"], "p_fecha": (data.fecha or date.today()).isoformat(),
+        }).execute()
+        return res.data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=_mensaje_de_error(e))
+
+
 @router.post("/conteos/")
 def confirmar_conteo(data: ConteoCreate, usuario: dict = acceso):
     try:
