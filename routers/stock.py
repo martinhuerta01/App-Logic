@@ -29,11 +29,13 @@ class MapeoSerCreate(BaseModel):
     codigo_serenisima: int
     descripcion: str
     producto_ids: List[str]
+    modo: str = "suma"  # suma | pares
 
 class MapeoSerUpdate(BaseModel):
     codigo_serenisima: Optional[int] = None
     descripcion: Optional[str] = None
     producto_ids: Optional[List[str]] = None
+    modo: Optional[str] = None
 
 @router.get("/productos/")
 def listar_productos():

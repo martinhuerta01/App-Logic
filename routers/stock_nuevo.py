@@ -384,3 +384,27 @@ def guardar_dias_alerta(data: DiasAlerta, usuario: dict = acceso):
         raise HTTPException(status_code=400, detail="Los días de alerta tienen que estar entre 1 y 365")
     supabase.table("configuracion_stock").upsert({"clave": "dias_alerta_retirados", "valor": str(data.dias)}).execute()
     return {"dias": data.dias}
+
+
+# ─── Códigos de La Serenísima ───────────────────────────────────────
+
+@router.get("/mapeo-serenisima/")
+def mapeo_serenisima(usuario: dict = acceso):
+    """Equivalencia entre los códigos de La Serenísima y nuestros productos (Catálogos → Mapeo La Serenísima)."""
+    return supabase.table("mapeo_serenisima").select("*").order("codigo_serenisima").execute().data
+
+
+@router.get("/centros/stock/")
+def stock_de_centros(usuario: dict = acceso):
+    """Stock ahora de todos los centros de distribución, por producto, para verlos juntos con los códigos de La Serenísima."""
+    try:
+        centros = supabase.table("ubicaciones").select("id, nombre, localidad").eq("segmento", "cd").execute().data
+    except Exception:
+        centros = supabase.table("ubicaciones").select("id, nombre").eq("tipo", "cd").execute().data
+    ids = {c["id"] for c in centros}
+    stock = defaultdict(dict)
+    for s in _todos(lambda: supabase.table("stock_actual").select("ubicacion_id, producto_id, cantidad")):
+        if s["ubicacion_id"] in ids:
+            stock[s["ubicacion_id"]][s["producto_id"]] = s["cantidad"]
+    productos = supabase.table("productos").select("id, codigo, descripcion, categoria").neq("categoria", "Herramientas").execute().data
+    return {"centros": sorted(centros, key=lambda c: c["nombre"].strip()), "stock": stock, "productos": productos}

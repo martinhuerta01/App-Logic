@@ -22,6 +22,7 @@ Una migración es un cambio de la estructura de la base de datos (tablas, column
 | 007_stock_nuevo_retirados | Retirados: recepción en la Oficina, faltantes y días de alerta (requiere la 006) | **Pendiente** |
 | 008_ubicaciones_segmento | Segmento de cada ubicación (oficina, centro, taller, técnico, equipo, otras) para agrupar el Stock nuevo | **Pendiente** |
 | 009_ubicaciones_localidad | Localidad de cada ubicación, para conservarla aunque el nombre sea el de un técnico | **Pendiente** |
+| 010_serenisima_modo_de_conteo | Cómo se cuenta cada código de La Serenísima (suma o pares completos, como la ficha de enganche) | **Pendiente** |
 
 ## Datos iniciales que no son migraciones
 
