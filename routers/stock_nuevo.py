@@ -408,3 +408,114 @@ def stock_de_centros(usuario: dict = acceso):
             stock[s["ubicacion_id"]][s["producto_id"]] = s["cantidad"]
     productos = supabase.table("productos").select("id, codigo, descripcion, categoria").neq("categoria", "Herramientas").execute().data
     return {"centros": sorted(centros, key=lambda c: c["nombre"].strip()), "stock": stock, "productos": productos}
+
+
+# ─── Dashboard ──────────────────────────────────────────────────────
+
+VENTANA_CONSUMO_DIAS = 90  # el consumo diario se promedia sobre los últimos 90 días
+CLAVES_DE_ALERTA = {"dias_alerta_retirados": 15, "dias_alerta_conteo": 30}
+
+
+class MinimoOficina(BaseModel):
+    producto_id: str
+    cantidad_minima: Optional[int] = None  # None quita el mínimo
+
+
+class AlertaConfig(BaseModel):
+    clave: str
+    dias: int
+
+
+def _config_dias(clave: str) -> int:
+    try:
+        r = supabase.table("configuracion_stock").select("valor").eq("clave", clave).execute().data
+        return int(r[0]["valor"]) if r else CLAVES_DE_ALERTA[clave]
+    except Exception:
+        return CLAVES_DE_ALERTA[clave]
+
+
+@router.get("/dashboard/")
+def dashboard(usuario: dict = acceso):
+    hoy = date.today()
+    ubicaciones = listar_ubicaciones(usuario)
+    oficina = next((u for u in ubicaciones if u["tipo"] == "oficina"), None)
+
+    # Reposición de la Oficina: cuánto hay, el mínimo y cuánto se consume por día (tickets y salidas sin destino)
+    desde = (hoy.toordinal() - VENTANA_CONSUMO_DIAS)
+    desde_iso = date.fromordinal(desde).isoformat()
+    consumo = defaultdict(int)
+    for m in _todos(lambda: supabase.table("movimientos").select("producto_id, cantidad")
+                    .in_("tipo", ["INSTALACION", "SALIDA"]).is_("destino_id", "null").gte("fecha", desde_iso)):
+        consumo[m["producto_id"]] += m["cantidad"]
+
+    stock_oficina = {}
+    if oficina:
+        stock_oficina = {s["producto_id"]: s["cantidad"] for s in
+                         supabase.table("stock_actual").select("producto_id, cantidad").eq("ubicacion_id", oficina["id"]).execute().data}
+    try:
+        minimos = {m["producto_id"]: m["cantidad_minima"] for m in
+                   supabase.table("stock_minimo").select("producto_id, cantidad_minima").eq("ambito", "oficina").execute().data}
+    except Exception:
+        minimos = {}
+
+    productos = supabase.table("productos").select("id, codigo, descripcion, categoria, plazo_entrega_dias") \
+        .eq("activo", True).neq("categoria", "Herramientas").order("codigo").execute().data
+    reposicion = []
+    for p in productos:
+        pid = p["id"]
+        stock = stock_oficina.get(pid, 0)
+        total = consumo.get(pid, 0)
+        if stock == 0 and total == 0 and pid not in minimos:
+            continue
+        por_dia = round(total / VENTANA_CONSUMO_DIAS, 2)
+        dias = int(stock / por_dia) if por_dia > 0 and stock > 0 else (0 if por_dia > 0 else None)
+        plazo = p.get("plazo_entrega_dias") if p.get("plazo_entrega_dias") is not None else 3
+        pedir_el = date.fromordinal(hoy.toordinal() + max(0, dias - plazo)).isoformat() if dias is not None else None
+        reposicion.append({
+            "producto_id": pid, "codigo": (p["codigo"] or "").strip(), "descripcion": p["descripcion"], "categoria": p["categoria"],
+            "stock": stock, "minimo": minimos.get(pid), "consumo_90_dias": total, "consumo_por_dia": por_dia,
+            "dias_de_stock": dias, "plazo_entrega_dias": plazo, "pedir_el": pedir_el,
+        })
+
+    # Retirados y faltantes
+    retirados = listar_retirados(usuario)
+    dias_retirados = retirados["dias_alerta"]
+    atrasados = sum(1 for r in retirados["retirados"] if (r["dias"] or 0) > dias_retirados)
+    faltantes = supabase.table("faltantes").select("id").eq("resuelto", False).execute().data
+
+    return {
+        "hoy": hoy.isoformat(),
+        "ventana_dias": VENTANA_CONSUMO_DIAS,
+        "ubicaciones": ubicaciones,
+        "reposicion": reposicion,
+        "retirados": {"pendientes": len(retirados["retirados"]), "atrasados": atrasados, "dias_alerta": dias_retirados},
+        "faltantes": len(faltantes),
+        "dias_alerta_conteo": _config_dias("dias_alerta_conteo"),
+    }
+
+
+@router.put("/minimos/")
+def guardar_minimo_oficina(data: MinimoOficina, usuario: dict = acceso):
+    if data.cantidad_minima is None:
+        supabase.table("stock_minimo").delete().eq("producto_id", data.producto_id).eq("ambito", "oficina").execute()
+        return {"ok": True}
+    if data.cantidad_minima < 0:
+        raise HTTPException(status_code=400, detail="El mínimo no puede ser negativo")
+    existente = supabase.table("stock_minimo").select("id").eq("producto_id", data.producto_id).eq("ambito", "oficina").execute().data
+    if existente:
+        supabase.table("stock_minimo").update({"cantidad_minima": data.cantidad_minima}).eq("id", existente[0]["id"]).execute()
+    else:
+        supabase.table("stock_minimo").insert({"producto_id": data.producto_id, "ambito": "oficina", "cantidad_minima": data.cantidad_minima}).execute()
+    return {"ok": True}
+
+
+@router.put("/alertas/")
+def guardar_alerta(data: AlertaConfig, usuario: dict = acceso):
+    if usuario.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administración puede cambiar los días de alerta")
+    if data.clave not in CLAVES_DE_ALERTA:
+        raise HTTPException(status_code=400, detail="Alerta desconocida")
+    if data.dias < 1 or data.dias > 365:
+        raise HTTPException(status_code=400, detail="Los días de alerta tienen que estar entre 1 y 365")
+    supabase.table("configuracion_stock").upsert({"clave": data.clave, "valor": str(data.dias)}).execute()
+    return {"clave": data.clave, "dias": data.dias}
