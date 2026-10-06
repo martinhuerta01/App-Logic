@@ -64,12 +64,14 @@ def eliminar_producto(producto_id: str):
 class UbicacionCreate(BaseModel):
     nombre: str
     tipo: Optional[str] = None  # oficina | cd | general
+    segmento: Optional[str] = None  # oficina | cd | taller | tecnico | equipo | otras
     equipo_id: Optional[str] = None  # enlace opcional con el equipo de Personal (Camioneta 1 -> Equipo 1)
     ubicacion_materiales_id: Optional[str] = None  # de dónde salen los materiales de instalación de sus tickets
 
 class UbicacionUpdate(BaseModel):
     nombre: Optional[str] = None
     tipo: Optional[str] = None
+    segmento: Optional[str] = None
     equipo_id: Optional[str] = None
     ubicacion_materiales_id: Optional[str] = None
 

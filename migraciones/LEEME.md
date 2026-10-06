@@ -20,6 +20,7 @@ Una migración es un cambio de la estructura de la base de datos (tablas, column
 | 004_stock_origen_de_materiales | Ubicación de la que salen los materiales de instalación (cable, cajas, pasacables) de los tickets de cada ubicación | Sí |
 | 006_stock_nuevo_conteos_y_envios | Módulo Stock nuevo: conteos físicos, envíos entre ubicaciones con series (funciones atómicas), productos que llevan serie | **Pendiente** |
 | 007_stock_nuevo_retirados | Retirados: recepción en la Oficina, faltantes y días de alerta (requiere la 006) | **Pendiente** |
+| 008_ubicaciones_segmento | Segmento de cada ubicación (oficina, centro, taller, técnico, equipo, otras) para agrupar el Stock nuevo | **Pendiente** |
 
 ## Datos iniciales que no son migraciones
 

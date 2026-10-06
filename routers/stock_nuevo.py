@@ -70,7 +70,11 @@ class ConteoCreate(BaseModel):
 @router.get("/ubicaciones/")
 def listar_ubicaciones(usuario: dict = acceso):
     """Ubicaciones con la fecha de su último conteo y cuántos productos quedaron sin explicar (negativos)."""
-    ubicaciones = supabase.table("ubicaciones").select("id, nombre, tipo").execute().data
+    try:
+        ubicaciones = supabase.table("ubicaciones").select("id, nombre, tipo, segmento").execute().data
+    except Exception:
+        # Antes de aplicar la migración 008 todavía no existe el segmento
+        ubicaciones = supabase.table("ubicaciones").select("id, nombre, tipo").execute().data
     stock = _todos(lambda: supabase.table("stock_actual").select("ubicacion_id, cantidad"))
     conteos = _todos(lambda: supabase.table("conteos").select("ubicacion_id, fecha, creado_en").order("creado_en", desc=True))
     ultimo = {}
