@@ -565,3 +565,59 @@ def guardar_alerta(data: AlertaConfig, usuario: dict = acceso):
         raise HTTPException(status_code=400, detail="Los días de alerta tienen que estar entre 1 y 365")
     supabase.table("configuracion_stock").upsert({"clave": data.clave, "valor": str(data.dias)}).execute()
     return {"clave": data.clave, "dias": data.dias}
+
+
+# ─── Equipos por número de serie: edición completa y borrado ────────
+
+ESTADOS_EQUIPO = {"EN_STOCK", "INSTALADO", "RETIRADO_PENDIENTE", "USADO_OK_CAMPO", "USADO_OK_OFICINA", "FALLA_RMA", "BAJA"}
+
+
+class EquipoEditar(BaseModel):
+    serial: str
+    producto_id: str
+    estado: str
+    ubicacion_id: Optional[str] = None
+    patente: Optional[str] = None
+    configuracion: Optional[str] = None
+    cliente: Optional[str] = None
+
+
+@router.put("/equipos/{equipo_id}")
+def editar_equipo(equipo_id: str, data: EquipoEditar, usuario: dict = acceso):
+    """Corrige todos los datos de un equipo (serie, modelo, estado, ubicación, patente, configuración y cliente)."""
+    actual = supabase.table("equipos_estado").select("id, serial").eq("id", equipo_id).execute().data
+    if not actual:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    serial = data.serial.strip()
+    if not serial:
+        raise HTTPException(status_code=400, detail="El número de serie no puede quedar vacío")
+    if data.estado not in ESTADOS_EQUIPO:
+        raise HTTPException(status_code=400, detail="Estado inválido")
+    producto = supabase.table("productos").select("id, categoria").eq("id", data.producto_id).execute().data
+    if not producto or producto[0]["categoria"] != "Dispositivos":
+        raise HTTPException(status_code=400, detail="El modelo tiene que ser un producto de la categoría Dispositivos")
+    otro = supabase.table("equipos_estado").select("id").eq("serial", serial).neq("id", equipo_id).execute().data
+    if otro:
+        raise HTTPException(status_code=400, detail=f"Ya existe otro equipo con el número de serie {serial}")
+    if data.ubicacion_id and not supabase.table("ubicaciones").select("id").eq("id", data.ubicacion_id).execute().data:
+        raise HTTPException(status_code=400, detail="La ubicación no existe")
+    limpio = lambda v: (v or "").strip() or None
+    cambios = {
+        "serial": serial, "producto_id": data.producto_id, "estado": data.estado,
+        "ubicacion_id": data.ubicacion_id or None,
+        "patente": (limpio(data.patente) or "").upper().replace(" ", "") or None,
+        "configuracion": limpio(data.configuracion), "cliente": limpio(data.cliente),
+        "updated_at": datetime.now().astimezone().isoformat(),
+    }
+    return supabase.table("equipos_estado").update(cambios).eq("id", equipo_id).execute().data
+
+
+@router.delete("/equipos/{equipo_id}")
+def eliminar_equipo(equipo_id: str, usuario: dict = acceso):
+    """Borra un equipo de la lista. Los movimientos con su número de serie quedan en el historial."""
+    if usuario.get("rol") != "admin":
+        raise HTTPException(status_code=403, detail="Solo administración puede eliminar equipos")
+    r = supabase.table("equipos_estado").delete().eq("id", equipo_id).execute().data
+    if not r:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    return {"ok": True, "serial": r[0]["serial"]}
