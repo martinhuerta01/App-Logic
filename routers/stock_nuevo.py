@@ -164,6 +164,23 @@ def stock_de_ubicacion(ubicacion_id: str, usuario: dict = acceso):
             "stock": ahora,
             "series_cargadas": series[pid] if p.get("lleva_serie") else None,
         })
+    if ubic[0]["tipo"] == "oficina":
+        repos, _ = _reposicion_oficina(date.today(), ubic[0])
+        por_producto = {r["producto_id"]: r for r in repos}
+        en_filas = {f["producto_id"] for f in filas}
+        info_producto = {p["id"]: p for p in productos}
+        # Un producto que se consume pero tiene stock 0 en la Oficina no tiene fila de stock: se agrega en cero para poder marcarlo
+        for r in repos:
+            if r["producto_id"] not in en_filas and (r["consumo_por_dia"] > 0 or r["minimo"] is not None):
+                p = info_producto.get(r["producto_id"], {})
+                filas.append({
+                    "producto_id": r["producto_id"], "codigo": r["codigo"], "descripcion": r["descripcion"], "categoria": r["categoria"],
+                    "activo": True, "lleva_serie": bool(p.get("lleva_serie")), "ultimo_conteo": contado.get(r["producto_id"]),
+                    "envios": 0, "tickets": 0, "stock": 0, "series_cargadas": 0 if p.get("lleva_serie") else None,
+                })
+        for f in filas:
+            r = por_producto.get(f["producto_id"])
+            f["reposicion"] = ({k: r[k] for k in ("minimo", "consumo_por_dia", "dias_de_stock", "pedir_el")} if r else None)
     filas.sort(key=lambda f: (f["categoria"] or "", f["codigo"]))
     return {"ubicacion": ubic[0], "conteo": conteo, "filas": filas}
 
@@ -454,12 +471,8 @@ def _config_dias(clave: str) -> int:
         return CLAVES_DE_ALERTA[clave]
 
 
-@router.get("/dashboard/")
-def dashboard(usuario: dict = acceso):
-    hoy = date.today()
-    ubicaciones = listar_ubicaciones(usuario)
-    oficina = next((u for u in ubicaciones if u["tipo"] == "oficina"), None)
-
+def _reposicion_oficina(hoy: date, oficina: Optional[dict]):
+    """Por producto de la Oficina: stock, mínimo, consumo por día, días de stock y fecha para pedir. Devuelve (reposición, productos)."""
     # Reposición de la Oficina: cuánto hay, el mínimo y cuánto se consume por día (tickets y salidas sin destino)
     desde = (hoy.toordinal() - VENTANA_CONSUMO_DIAS)
     desde_iso = date.fromordinal(desde).isoformat()
@@ -496,6 +509,16 @@ def dashboard(usuario: dict = acceso):
             "stock": stock, "minimo": minimos.get(pid), "consumo_90_dias": total, "consumo_por_dia": por_dia,
             "dias_de_stock": dias, "plazo_entrega_dias": plazo, "pedir_el": pedir_el,
         })
+    return reposicion, productos
+
+
+@router.get("/dashboard/")
+def dashboard(usuario: dict = acceso):
+    hoy = date.today()
+    ubicaciones = listar_ubicaciones(usuario)
+    oficina = next((u for u in ubicaciones if u["tipo"] == "oficina"), None)
+
+    reposicion, productos = _reposicion_oficina(hoy, oficina)
 
     # Consumo de los últimos 6 meses por categoría (para el gráfico)
     primer_mes = date(hoy.year, hoy.month, 1)
