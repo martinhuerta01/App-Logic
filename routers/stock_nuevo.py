@@ -621,3 +621,67 @@ def eliminar_equipo(equipo_id: str, usuario: dict = acceso):
     if not r:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
     return {"ok": True, "serial": r[0]["serial"]}
+
+
+# ─── Entradas (compras que llegan a la Oficina) ─────────────────────
+
+class LineaEntrada(BaseModel):
+    producto_id: str
+    cantidad: int
+    series: Optional[List[str]] = None
+
+
+class EntradaCreate(BaseModel):
+    fecha: Optional[date] = None
+    proveedor_id: Optional[str] = None
+    lineas: List[LineaEntrada]
+
+
+def _oficina_id() -> str:
+    oficina = supabase.table("ubicaciones").select("id").eq("tipo", "oficina").limit(1).execute().data
+    if not oficina:
+        raise HTTPException(status_code=400, detail="No hay una ubicación de tipo oficina")
+    return oficina[0]["id"]
+
+
+@router.get("/proveedores/")
+def proveedores_activos(usuario: dict = acceso):
+    return supabase.table("proveedores").select("id, nombre").eq("activo", True).order("nombre").execute().data
+
+
+@router.post("/entradas/")
+def registrar_entrada(data: EntradaCreate, usuario: dict = acceso):
+    if data.fecha and data.fecha > date.today():
+        raise HTTPException(status_code=400, detail="La fecha de la entrada no puede ser futura")
+    try:
+        res = supabase.rpc("fn_registrar_entrada", {
+            "p_destino": _oficina_id(),
+            "p_fecha": (data.fecha or date.today()).isoformat(),
+            "p_cargado_por": usuario["nombre"],
+            "p_proveedor": data.proveedor_id or None,
+            "p_lineas": [l.model_dump() for l in data.lineas],
+        }).execute()
+        return res.data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=_mensaje_de_error(e))
+
+
+@router.get("/entradas/")
+def listar_entradas(desde: Optional[date] = None, hasta: Optional[date] = None, usuario: dict = acceso):
+    """Entradas a la Oficina en un período (por defecto, los últimos 90 días)."""
+    hasta = hasta or date.today()
+    desde = desde or date.fromordinal(hasta.toordinal() - 90)
+    oficina = _oficina_id()
+
+    def consulta(columnas):
+        return lambda: supabase.table("movimientos").select(columnas).eq("tipo", "ENTRADA").eq("destino_id", oficina) \
+            .gte("fecha", desde.isoformat()).lte("fecha", hasta.isoformat()).order("fecha", desc=True).order("created_at", desc=True)
+    try:
+        filas = _todos(consulta("id, fecha, cantidad, serial, cargado_por, observacion, created_at, entrada_id, proveedor_id, "
+                                "productos(codigo, descripcion, categoria), proveedores(nombre)"))
+    except Exception:
+        # Antes de aplicar la migración 012 no existen la agrupación ni el proveedor
+        filas = _todos(consulta("id, fecha, cantidad, serial, cargado_por, observacion, created_at, productos(codigo, descripcion, categoria)"))
+    return {"desde": desde.isoformat(), "hasta": hasta.isoformat(), "movimientos": filas}
