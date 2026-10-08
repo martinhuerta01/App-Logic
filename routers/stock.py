@@ -8,6 +8,17 @@ from auth_middleware import get_current_user
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
+
+def _todas_las_filas(armar_consulta):
+    """La base entrega de a 1000 filas: pide todas las páginas. armar_consulta() devuelve la consulta con filtros y orden."""
+    filas, desde = [], 0
+    while True:
+        lote = armar_consulta().range(desde, desde + 999).execute().data
+        filas += lote
+        if len(lote) < 1000:
+            return filas
+        desde += 1000
+
 class ProductoCreate(BaseModel):
     codigo: str
     descripcion: str
@@ -169,17 +180,18 @@ def registrar_transferencia(data: TransferenciaCreate):
 
 @router.get("/movimientos/")
 def listar_movimientos(ubicacion_id: str = None, producto_id: str = None, serial: str = None):
-    query = supabase.table("movimientos").select(
-        "*, productos(codigo, descripcion), ubicaciones!movimientos_origen_id_fkey(nombre)"
-    )
-    if ubicacion_id:
-        query = query.or_(f"origen_id.eq.{ubicacion_id},destino_id.eq.{ubicacion_id}")
-    if producto_id:
-        query = query.eq("producto_id", producto_id)
-    if serial:
-        query = query.eq("serial", serial)
-    result = query.order("fecha", desc=True).execute()
-    return result.data
+    def consulta():
+        query = supabase.table("movimientos").select(
+            "*, productos(codigo, descripcion), ubicaciones!movimientos_origen_id_fkey(nombre)"
+        )
+        if ubicacion_id:
+            query = query.or_(f"origen_id.eq.{ubicacion_id},destino_id.eq.{ubicacion_id}")
+        if producto_id:
+            query = query.eq("producto_id", producto_id)
+        if serial:
+            query = query.eq("serial", serial)
+        return query.order("fecha", desc=True).order("id")
+    return _todas_las_filas(consulta)
 
 class MovimientoUpdate(BaseModel):
     cantidad: Optional[int] = None
@@ -276,19 +288,20 @@ def eliminar_mapeo(mapeo_id: str):
 
 @router.get("/equipos/")
 def listar_equipos(estado: str = None, ubicacion_id: str = None, patente: str = None, q: str = None):
-    query = supabase.table("equipos_estado").select(
-        "*, productos(codigo, descripcion), ubicaciones(nombre)"
-    )
-    if estado:
-        query = query.eq("estado", estado)
-    if ubicacion_id:
-        query = query.eq("ubicacion_id", ubicacion_id)
-    if patente:
-        query = query.eq("patente", patente)
-    if q:
-        query = query.ilike("serial", f"%{q}%")
-    result = query.order("updated_at", desc=True).execute()
-    return result.data
+    def consulta():
+        query = supabase.table("equipos_estado").select(
+            "*, productos(codigo, descripcion), ubicaciones(nombre)"
+        )
+        if estado:
+            query = query.eq("estado", estado)
+        if ubicacion_id:
+            query = query.eq("ubicacion_id", ubicacion_id)
+        if patente:
+            query = query.eq("patente", patente)
+        if q:
+            query = query.ilike("serial", f"%{q}%")
+        return query.order("updated_at", desc=True).order("id")
+    return _todas_las_filas(consulta)
 
 class EquipoEstadoUpdate(BaseModel):
     estado: Optional[str] = None
