@@ -3,6 +3,7 @@ import os
 import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -34,6 +35,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def error_inesperado(request: Request, exc: Exception):
+    """
+    Un error interno devuelve el mensaje real y con los permisos de CORS. Sin esto, el navegador
+    bloquea la respuesta de error y la pantalla solo muestra "Failed to fetch", sin decir qué pasó.
+    """
+    logger.exception("Error inesperado en %s %s", request.method, request.url.path)
+    respuesta = JSONResponse(status_code=500, content={"detail": f"Error interno ({type(exc).__name__}): {str(exc)[:240]}"})
+    origen = request.headers.get("origin")
+    if origen in _allowed_origins:
+        respuesta.headers["Access-Control-Allow-Origin"] = origen
+        respuesta.headers["Access-Control-Allow-Credentials"] = "true"
+        respuesta.headers["Vary"] = "Origin"
+    return respuesta
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
