@@ -57,6 +57,12 @@ def _responder_duplicados(duplicados):
 def _preparar_para_guardar(data: ServicioCreate):
     fila = data.model_dump(mode="json", exclude={"confirmar_duplicado"})
     fila["patente"] = normalizar_patente(fila.get("patente"))
+    # cliente_ref apunta a la tabla terceros. Si llega un identificador que no está ahí (por ejemplo, el de un
+    # contacto de Contactos), se guarda sin referencia en lugar de rechazar todo el servicio por la clave foránea.
+    if fila.get("cliente_ref"):
+        existe = supabase.table("terceros").select("id").eq("id", fila["cliente_ref"]).limit(1).execute().data
+        if not existe:
+            fila["cliente_ref"] = None
     return fila
 
 
