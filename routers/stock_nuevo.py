@@ -292,7 +292,15 @@ def contexto_de_tickets(usuario: dict = acceso):
     for c in _todos(lambda: supabase.table("conteos").select("ubicacion_id, fecha, creado_en").order("creado_en", desc=True)):
         ultimos.setdefault(c["ubicacion_id"], c["fecha"])
     equipos = _todos(lambda: supabase.table("equipos_estado").select("serial, estado, ubicacion_id, recibido_en"))
-    return {"importados": importados, "ultimos_conteos": ultimos, "equipos": equipos}
+    # Fechas base que se cargan en configuracion_stock: desde cuándo está en cero cada ubicación sin conteo
+    # (clave "stock_en_cero:<id de la ubicación>") y hasta qué día están cargados los equipos de la plataforma.
+    try:
+        config = {c["clave"]: c["valor"] for c in supabase.table("configuracion_stock").select("clave, valor").execute().data}
+    except Exception:
+        config = {}
+    en_cero = {k.split(":", 1)[1]: v for k, v in config.items() if k.startswith("stock_en_cero:")}
+    return {"importados": importados, "ultimos_conteos": ultimos, "equipos": equipos,
+            "en_cero_desde": en_cero, "equipos_hasta": config.get("equipos_cargados_hasta")}
 
 
 @router.post("/tickets/confirmar/")
